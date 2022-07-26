@@ -32,14 +32,28 @@ impl<T> From<(T, T)> for FAD<T> {
     }
 }
 
-impl<T1, T2, O> std::ops::Add<T2> for FAD<T1>
+impl<T, O> crate::ops::NumOps<T, FAD<O>> for FAD<T>
 where
-    T1: std::ops::Add<T2, Output = O> + Into<O>,
+    T: crate::ops::NumOps<T, O>
+        + std::ops::Mul<O, Output = O>
+        + Clone
+        + std::ops::Div<O, Output = O>
+        + std::ops::Sub<O, Output = O>
+        + std::ops::Sub<T, Output = O>
+        + crate::ops::Pow<O, Output = O>
+        + Into<O>,
+    O: std::ops::Sub<O, Output = O> + std::ops::Mul<O, Output = O> + Clone,
+{
+}
+
+impl<T, O> std::ops::Add<T> for FAD<T>
+where
+    T: std::ops::Add<T, Output = O> + Into<O>,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn add(self, rhs: T2) -> Self::Output {
+    fn add(self, rhs: T) -> Self::Output {
         FAD {
             value: self.value.add(rhs),
             delta: self.delta.into(),
@@ -47,14 +61,23 @@ where
     }
 }
 
-impl<'a, T1: 'a, T2, O> std::ops::Add<T2> for &'a FAD<T1>
+impl<T> crate::ops::One for FAD<T>
 where
-    &'a T1: std::ops::Add<T2, Output = O> + Into<O>,
+    T: crate::ops::One,
+{
+    fn one() -> Self {
+        T::one().into()
+    }
+}
+
+impl<'a, T, O> std::ops::Add<T> for &'a FAD<T>
+where
+    &'a T: std::ops::Add<T, Output = O> + Into<O>,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn add(self, rhs: T2) -> Self::Output {
+    fn add(self, rhs: T) -> Self::Output {
         FAD {
             value: self.value.add(rhs),
             delta: (&self.delta).into(),
@@ -62,14 +85,44 @@ where
     }
 }
 
-impl<T1, T2, O> std::ops::Sub<T2> for FAD<T1>
+impl<'a, T, O> std::ops::Add<&'a T> for FAD<T>
 where
-    T1: std::ops::Sub<T2, Output = O> + Into<O>,
+    T: std::ops::Add<&'a T, Output = O> + Into<O>,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn sub(self, rhs: T2) -> Self::Output {
+    fn add(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.add(rhs),
+            delta: self.delta.into(),
+        }
+    }
+}
+
+impl<'a, T, O> std::ops::Add<&'a T> for &'a FAD<T>
+where
+    &'a T: std::ops::Add<&'a T, Output = O> + Into<O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn add(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.add(rhs),
+            delta: (&self.delta).into(),
+        }
+    }
+}
+
+impl<T, O> std::ops::Sub<T> for FAD<T>
+where
+    T: std::ops::Sub<T, Output = O> + Into<O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn sub(self, rhs: T) -> Self::Output {
         FAD {
             value: self.value.sub(rhs),
             delta: self.delta.into(),
@@ -77,14 +130,14 @@ where
     }
 }
 
-impl<'a, T1: 'a, T2, O> std::ops::Sub<T2> for &'a FAD<T1>
+impl<'a, T, O> std::ops::Sub<T> for &'a FAD<T>
 where
-    &'a T1: std::ops::Sub<T2, Output = O> + Into<O>,
+    &'a T: std::ops::Sub<T, Output = O> + Into<O>,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn sub(self, rhs: T2) -> Self::Output {
+    fn sub(self, rhs: T) -> Self::Output {
         FAD {
             value: self.value.sub(rhs),
             delta: (&self.delta).into(),
@@ -92,15 +145,75 @@ where
     }
 }
 
-impl<T1, T2, O> std::ops::Mul<T2> for FAD<T1>
+impl<'a, T, O> std::ops::Sub<&'a T> for FAD<T>
 where
-    T1: std::ops::Mul<T2, Output = O>,
-    T2: Copy,
+    T: std::ops::Sub<&'a T, Output = O> + Into<O>,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn mul(self, rhs: T2) -> Self::Output {
+    fn sub(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.sub(rhs),
+            delta: self.delta.into(),
+        }
+    }
+}
+
+impl<'a, T, O> std::ops::Sub<&'a T> for &'a FAD<T>
+where
+    &'a T: std::ops::Sub<&'a T, Output = O> + Into<O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn sub(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.sub(rhs),
+            delta: (&self.delta).into(),
+        }
+    }
+}
+
+impl<T, O> std::ops::Mul<T> for FAD<T>
+where
+    T: std::ops::Mul<T, Output = O> + Clone,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn mul(self, rhs: T) -> Self::Output {
+        FAD {
+            value: self.value.mul(rhs.clone()),
+            delta: self.delta.mul(rhs),
+        }
+    }
+}
+
+impl<'a, T, O> std::ops::Mul<T> for &'a FAD<T>
+where
+    &'a T: std::ops::Mul<T, Output = O>,
+    T: Clone,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn mul(self, rhs: T) -> Self::Output {
+        FAD {
+            value: self.value.mul(rhs.clone()),
+            delta: self.delta.mul(rhs),
+        }
+    }
+}
+
+impl<'a, T, O> std::ops::Mul<&'a T> for FAD<T>
+where
+    T: std::ops::Mul<&'a T, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn mul(self, rhs: &'a T) -> Self::Output {
         FAD {
             value: self.value.mul(rhs),
             delta: self.delta.mul(rhs),
@@ -108,17 +221,16 @@ where
     }
 }
 
-impl<'a, T1: 'a, T2, O> std::ops::Mul<T2> for &'a FAD<T1>
+impl<'a, T, O> std::ops::Mul<&'a T> for &'a FAD<T>
 where
-    &'a T1: std::ops::Mul<T2, Output = O>,
-    T2: Clone,
+    &'a T: std::ops::Mul<&'a T, Output = O>,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn mul(self, rhs: T2) -> Self::Output {
+    fn mul(self, rhs: &'a T) -> Self::Output {
         FAD {
-            value: self.value.mul(rhs.clone()),
+            value: self.value.mul(rhs),
             delta: self.delta.mul(rhs),
         }
     }
@@ -139,7 +251,7 @@ where
     }
 }
 
-impl<'a, T: 'a, O> std::ops::Neg for &'a FAD<T>
+impl<'a, T, O> std::ops::Neg for &'a FAD<T>
 where
     &'a T: std::ops::Neg<Output = O>,
 {
@@ -154,31 +266,25 @@ where
     }
 }
 
-impl<T1, T2, O> std::ops::Div<T2> for FAD<T1>
+impl<T, O> crate::ops::Abs for FAD<T>
 where
-    T1: std::ops::Div<T2, Output = O>,
-    T2: Copy,
+    T: crate::ops::Abs<Output = O>,
 {
     type Output = FAD<O>;
 
-    #[inline]
-    fn div(self, rhs: T2) -> Self::Output {
-        FAD {
-            value: self.value.div(rhs),
-            delta: self.delta.div(rhs),
-        }
+    fn abs(self) -> Self::Output {
+        todo!()
     }
 }
 
-impl<'a, T1: 'a, T2, O> std::ops::Div<T2> for &'a FAD<T1>
+impl<T, O> std::ops::Div<T> for FAD<T>
 where
-    &'a T1: std::ops::Div<T2, Output = O>,
-    T2: Clone,
+    T: std::ops::Div<T, Output = O> + Clone,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn div(self, rhs: T2) -> Self::Output {
+    fn div(self, rhs: T) -> Self::Output {
         FAD {
             value: self.value.div(rhs.clone()),
             delta: self.delta.div(rhs),
@@ -186,39 +292,129 @@ where
     }
 }
 
-impl<T1, T2, O> crate::ops::Pow<T2> for FAD<T1>
+impl<'a, T, O> std::ops::Div<T> for &'a FAD<T>
 where
-    T1: crate::ops::Pow<T2, Output = O> + std::ops::Mul<T2, Output = O> + Copy,
-    T2: std::ops::Sub<Output = T2> + One + Copy,
-    O: std::ops::Mul<O, Output = O>,
+    &'a T: std::ops::Div<T, Output = O>,
+    T: Clone,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn pow(self, rhs: T2) -> Self::Output {
+    fn div(self, rhs: T) -> Self::Output {
         FAD {
-            value: self.value.pow(rhs),
-            delta: (self.delta * rhs) * self.value.pow(rhs - T2::one()),
+            value: self.value.div(rhs.clone()),
+            delta: self.delta.div(rhs),
         }
     }
 }
 
-impl<'a, T1: 'a, T2, O> crate::ops::Pow<T2> for &'a FAD<T1>
+impl<'a, T, O> std::ops::Div<&'a T> for FAD<T>
 where
-    &'a T1: crate::ops::Pow<T2, Output = O>
-        + crate::ops::Pow<T2, Output = O>
-        + std::ops::Mul<T2, Output = O>,
-    T2: std::ops::Sub<T2, Output = T2>,
-    T2: One + Clone,
+    T: std::ops::Div<&'a T, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn div(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.div(rhs),
+            delta: self.delta.div(rhs),
+        }
+    }
+}
+
+impl<'a, T, O> std::ops::Div<&'a T> for &'a FAD<T>
+where
+    &'a T: std::ops::Div<&'a T, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn div(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.div(rhs),
+            delta: self.delta.div(rhs),
+        }
+    }
+}
+
+impl<T, O> crate::ops::Pow<T> for FAD<T>
+where
+    T: crate::ops::Pow<T, Output = O>
+        + crate::ops::Pow<O, Output = O>
+        + std::ops::Mul<T, Output = O>
+        + std::ops::Sub<T, Output = O>
+        + One
+        + Clone,
     O: std::ops::Mul<O, Output = O>,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn pow(self, rhs: T2) -> Self::Output {
+    fn pow(self, rhs: T) -> Self::Output {
+        FAD {
+            value: self.value.clone().pow(rhs.clone()),
+            delta: (self.delta * rhs.clone()) * self.value.pow(rhs - T::one()),
+        }
+    }
+}
+
+impl<'a, T, O> crate::ops::Pow<T> for &'a FAD<T>
+where
+    &'a T: crate::ops::Pow<T, Output = O>
+        + crate::ops::Pow<O, Output = O>
+        + std::ops::Mul<T, Output = O>,
+    T: std::ops::Sub<T, Output = O> + One + Clone,
+    O: std::ops::Mul<O, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn pow(self, rhs: T) -> Self::Output {
         FAD {
             value: (&self.value).pow(rhs.clone()),
-            delta: (&self.delta * rhs.clone()) * (&self.value).pow(rhs - T2::one()),
+            delta: (&self.delta * rhs.clone()) * (&self.value).pow(rhs - T::one()),
+        }
+    }
+}
+
+impl<'a, T, O> crate::ops::Pow<&'a T> for FAD<T>
+where
+    T: crate::ops::Pow<&'a T, Output = O>
+        + crate::ops::Pow<O, Output = O>
+        + std::ops::Mul<&'a T, Output = O>
+        + One
+        + Clone,
+    &'a T: std::ops::Sub<T, Output = O>,
+    O: std::ops::Mul<O, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn pow(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.clone().pow(rhs),
+            delta: (self.delta * rhs) * self.value.pow(rhs - T::one()),
+        }
+    }
+}
+
+impl<'a, T, O> crate::ops::Pow<&'a T> for &'a FAD<T>
+where
+    &'a T: crate::ops::Pow<&'a T, Output = O>
+        + crate::ops::Pow<O, Output = O>
+        + std::ops::Mul<&'a T, Output = O>
+        + std::ops::Sub<T, Output = O>,
+    T: One,
+    O: std::ops::Mul<O, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn pow(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: (&self.value).pow(rhs),
+            delta: (&self.delta * rhs) * (&self.value).pow(rhs - T::one()),
         }
     }
 }
@@ -238,7 +434,7 @@ where
     }
 }
 
-impl<'a, T: 'a, O> crate::ops::Exp for &'a FAD<T>
+impl<'a, T, O> crate::ops::Exp for &'a FAD<T>
 where
     &'a T: std::ops::Mul<O, Output = O> + crate::ops::Exp<Output = O>,
     O: Clone,
@@ -253,56 +449,91 @@ where
     }
 }
 
-impl<T1, T2, O> crate::ops::Wop<T2> for FAD<T1>
+impl<T, O> crate::ops::Pow<FAD<T>> for T
 where
-    T2: crate::ops::Ln<Output = O> + Clone,
-    T1: std::ops::Mul<O, Output = O> + crate::ops::Wop<T2, Output = O>,
+    T: std::ops::Mul<O, Output = O>
+        + crate::ops::Ln<Output = O>
+        + crate::ops::Pow<T, Output = O>
+        + Clone,
     O: std::ops::Mul<Output = O> + Clone,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn wop(self, rhs: T2) -> Self::Output {
-        let value = self.value.wop(rhs.clone());
-        let delta = self.delta * (rhs.ln() * value.clone());
+    fn pow(self, lhs: FAD<T>) -> Self::Output {
+        let value = self.clone().pow(lhs.value);
+        let delta = lhs.delta * (self.ln() * value.clone());
         FAD { value, delta }
     }
 }
 
-impl<'a, T1: 'a, T2, O> crate::ops::Wop<T2> for &'a FAD<T1>
+impl<'a, T, O> crate::ops::Pow<&'a FAD<T>> for T
 where
-    &'a T1: std::ops::Mul<O, Output = O> + crate::ops::Wop<T2, Output = O>,
-    T2: crate::ops::Ln<Output = O> + Clone,
-    O: std::ops::Mul<O, Output = O> + Clone,
+    &'a T: std::ops::Mul<O, Output = O>,
+    T: crate::ops::Ln<Output = O> + crate::ops::Pow<&'a T, Output = O> + Clone,
+    O: std::ops::Mul<Output = O> + Clone,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn wop(self, rhs: T2) -> Self::Output {
-        let value = self.value.wop(rhs.clone());
-        let delta = &self.delta * (rhs.ln() * value.clone());
+    fn pow(self, lhs: &'a FAD<T>) -> Self::Output {
+        let value = self.clone().pow(&lhs.value);
+        let delta = &lhs.delta * (self.ln() * value.clone());
+        FAD { value, delta }
+    }
+}
+
+impl<'a, T, O> crate::ops::Pow<FAD<T>> for &'a T
+where
+    &'a T: crate::ops::Pow<T, Output = O> + crate::ops::Ln<Output = O>,
+    T: std::ops::Mul<O, Output = O>,
+    O: std::ops::Mul<Output = O> + Clone,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn pow(self, lhs: FAD<T>) -> Self::Output {
+        let value = self.pow(lhs.value);
+        let delta = lhs.delta * (self.ln() * value.clone());
+        FAD { value, delta }
+    }
+}
+
+impl<'a, T, O> crate::ops::Pow<&'a FAD<T>> for &'a T
+where
+    &'a T: crate::ops::Pow<&'a T, Output = O>
+        + crate::ops::Ln<Output = O>
+        + std::ops::Mul<O, Output = O>,
+    O: std::ops::Mul<Output = O> + Clone,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn pow(self, lhs: &'a FAD<T>) -> Self::Output {
+        let value = self.pow(&lhs.value);
+        let delta = &lhs.delta * (self.ln() * value.clone());
         FAD { value, delta }
     }
 }
 
 impl<T, O> crate::ops::Ln for FAD<T>
 where
-    T: std::ops::Div<Output = O> + crate::ops::Ln<Output = O> + Copy,
+    T: std::ops::Div<Output = O> + crate::ops::Ln<Output = O> + Clone,
 {
     type Output = FAD<O>;
 
     #[inline]
     fn ln(self) -> Self::Output {
         FAD {
-            value: self.value.ln(),
+            value: self.value.clone().ln(),
             delta: self.delta / self.value,
         }
     }
 }
 
-impl<'a, T: 'a, O> crate::ops::Ln for &'a FAD<T>
+impl<'a, T, O> crate::ops::Ln for &'a FAD<T>
 where
-    &'a T: std::ops::Div<&'a T, Output = O> + crate::ops::Ln<Output = O> + Copy,
+    &'a T: std::ops::Div<&'a T, Output = O> + crate::ops::Ln<Output = O>,
 {
     type Output = FAD<O>;
 
@@ -315,18 +546,18 @@ where
     }
 }
 
-impl<T1, T2, O> crate::ops::Log<T2> for FAD<T1>
+impl<T, O> crate::ops::Log<T> for FAD<T>
 where
-    T1: std::ops::Div<O, Output = O>
-        + crate::ops::Log<T2, Output = O>
+    T: std::ops::Div<O, Output = O>
+        + crate::ops::Log<T, Output = O>
         + crate::ops::Ln<Output = O>
+        + std::ops::Mul<O, Output = O>
         + Clone,
-    T2: std::ops::Mul<O, Output = O> + Clone,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn log(self, rhs: T2) -> Self::Output {
+    fn log(self, rhs: T) -> Self::Output {
         FAD {
             value: self.value.clone().log(rhs.clone()),
             delta: self.delta / (rhs * self.value.ln()),
@@ -334,16 +565,16 @@ where
     }
 }
 
-impl<'a, T1: 'a, T2, O> crate::ops::Log<T2> for &'a FAD<T1>
+impl<'a, T, O> crate::ops::Log<T> for &'a FAD<T>
 where
-    &'a T1:
-        std::ops::Div<O, Output = O> + crate::ops::Log<T2, Output = O> + crate::ops::Ln<Output = O>,
-    T2: std::ops::Mul<O, Output = O> + Clone,
+    &'a T:
+        std::ops::Div<O, Output = O> + crate::ops::Log<T, Output = O> + crate::ops::Ln<Output = O>,
+    T: std::ops::Mul<O, Output = O> + Clone,
 {
     type Output = FAD<O>;
 
     #[inline]
-    fn log(self, rhs: T2) -> Self::Output {
+    fn log(self, rhs: T) -> Self::Output {
         FAD {
             value: self.value.log(rhs.clone()),
             delta: &self.delta / (rhs * self.value.ln()),
@@ -351,25 +582,77 @@ where
     }
 }
 
-macro_rules! impl_sqrt_fad {
-    ($t:ty) => {
-        impl crate::ops::Sqrt for FAD<$t> {
-            type Output = FAD<$t>;
+impl<'a, T, O> crate::ops::Log<&'a T> for FAD<T>
+where
+    T: std::ops::Div<O, Output = O>
+        + crate::ops::Log<&'a T, Output = O>
+        + crate::ops::Ln<Output = O>
+        + Clone,
+    &'a T: std::ops::Mul<O, Output = O>,
+{
+    type Output = FAD<O>;
 
-            #[inline]
-            fn sqrt(self) -> Self::Output {
-                let value = self.value.sqrt();
-                FAD {
-                    value,
-                    delta: self.delta * (0.5 as $t) / value,
-                }
-            }
+    #[inline]
+    fn log(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.clone().log(rhs),
+            delta: self.delta / (rhs * self.value.ln()),
         }
-    };
+    }
 }
 
-impl_sqrt_fad!(f32);
-impl_sqrt_fad!(f64);
+impl<'a, T, O> crate::ops::Log<&'a T> for &'a FAD<T>
+where
+    &'a T: std::ops::Div<O, Output = O>
+        + crate::ops::Log<&'a T, Output = O>
+        + crate::ops::Ln<Output = O>
+        + std::ops::Mul<O, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn log(self, rhs: &'a T) -> Self::Output {
+        FAD {
+            value: self.value.log(rhs),
+            delta: &self.delta / (rhs * self.value.ln()),
+        }
+    }
+}
+
+impl<T, O> crate::ops::Sqrt for FAD<T>
+where
+    T: crate::ops::Sqrt<Output = O> + crate::ops::Half + std::ops::Mul<T, Output = O>,
+    O: std::ops::Div<O, Output = O> + Clone,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn sqrt(self) -> Self::Output {
+        let value = self.value.sqrt();
+        FAD {
+            value: value.clone(),
+            delta: self.delta * T::half() / value,
+        }
+    }
+}
+
+impl<'a, T, O> crate::ops::Sqrt for &'a FAD<T>
+where
+    T: crate::ops::Half,
+    &'a T: crate::ops::Sqrt<Output = O> + std::ops::Mul<T, Output = O>,
+    O: std::ops::Div<O, Output = O> + Clone,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn sqrt(self) -> Self::Output {
+        let value = self.value.sqrt();
+        FAD {
+            value: value.clone(),
+            delta: &self.delta * T::half() / value,
+        }
+    }
+}
 
 impl<T, O> crate::ops::Trig for FAD<T>
 where
@@ -377,7 +660,7 @@ where
         + std::ops::Div<O, Output = O>
         + crate::ops::Trig<Output = O>
         + Clone,
-    O: std::ops::Mul<O, Output = O> + std::ops::Neg<Output = O> + Clone,
+    O: crate::ops::Square<Output = O> + std::ops::Neg<Output = O>,
 {
     type Output = FAD<O>;
 
@@ -399,10 +682,42 @@ where
 
     #[inline]
     fn tan(self) -> Self::Output {
-        let cos = self.value.clone().cos();
+        FAD {
+            value: self.value.clone().tan(),
+            delta: self.delta / self.value.cos().square(),
+        }
+    }
+}
+
+impl<'a, T, O> crate::ops::Trig for &'a FAD<T>
+where
+    &'a T:
+        std::ops::Mul<O, Output = O> + std::ops::Div<O, Output = O> + crate::ops::Trig<Output = O>,
+    O: crate::ops::Square<Output = O> + std::ops::Neg<Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn sin(self) -> Self::Output {
+        FAD {
+            value: self.value.sin(),
+            delta: &self.delta * self.value.cos(),
+        }
+    }
+
+    #[inline]
+    fn cos(self) -> Self::Output {
+        FAD {
+            value: self.value.cos(),
+            delta: &self.delta * (-self.value.sin()),
+        }
+    }
+
+    #[inline]
+    fn tan(self) -> Self::Output {
         FAD {
             value: self.value.tan(),
-            delta: self.delta / (cos.clone() * cos),
+            delta: &self.delta / self.value.cos().square(),
         }
     }
 }
@@ -425,8 +740,8 @@ mod tests {
 
     macro_rules! assert_fad_eq {
         ($a:expr, $b:expr) => {
-            let a: FAD<_> = $a.into();
-            let b: FAD<_> = $b.into();
+            let a: FAD<f32> = FAD::from($a);
+            let b: FAD<f32> = FAD::from($b);
             assert!((a.value - b.value).abs() < 1e-4, "{:?} != {:?}", a, b);
             assert!((a.delta - b.delta).abs() < 1e-4, "{:?} != {:?}", a, b);
         };
@@ -439,12 +754,12 @@ mod tests {
             for c in [2.0f32, 5., 7.] {
                 assert_fad_eq!(b + c, (a + c, 1.));
                 assert_fad_eq!(b * c, (a * c, c));
-                assert_fad_eq!((b * 2. + c), (a * 2. + c, 2.));
-                assert_fad_eq!(((b + c) * -2.), ((a + c) * -2., -2.));
+                assert_fad_eq!(b * 2. + c, (a * 2. + c, 2.));
+                assert_fad_eq!((b + c) * -2., ((a + c) * -2., -2.));
                 assert_fad_eq!(-b, (-a, -1.));
                 assert_fad_eq!(b / c, (a / c, 1. / c));
                 assert_fad_eq!(b.pow(c), (a.powf(c), c * a.powf(c - 1.)));
-                assert_fad_eq!(b.wop(c), (c.powf(a), c.ln() * c.powf(a)));
+                assert_fad_eq!(c.pow(b), (c.powf(a), c.ln() * c.powf(a)));
                 assert_fad_eq!(b.log(c), (a.log(c), 1. / c / a.ln()));
             }
             assert_fad_eq!(b.exp(), (a.exp(), a.exp()));
