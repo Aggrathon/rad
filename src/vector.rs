@@ -1,7 +1,8 @@
-use std::ops::*;
+/// Simple library for vectorised math
+use crate::ops::*;
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::ops::{Log, NumOps, One, Pow};
-
+/// Wrapper for vector math
 #[derive(PartialEq, Debug, Clone)]
 enum Vector<T> {
     Vec(Vec<T>),
@@ -19,6 +20,15 @@ impl<'a, T> Vector<T> {
     }
 }
 
+impl<T> NumOps<T, Vector<T>> for Vector<T> where T: NumOps<T, T> + Copy {}
+impl<'a, T> NumOps<T, Vector<T>> for &'a Vector<T> where T: NumOps<T, T> + Copy {}
+impl<'a, T> NumOps<&'a T, Vector<T>> for Vector<T> where T: NumOps<T, T> + Copy {}
+impl<'a, T> NumOps<&'a T, Vector<T>> for &'a Vector<T> where T: NumOps<T, T> + Copy {}
+impl<T> NumOps<Vector<T>, Vector<T>> for Vector<T> where T: NumOps<T, T> + Copy {}
+impl<'a, T> NumOps<Vector<T>, Vector<T>> for &'a Vector<T> where T: NumOps<T, T> + Copy {}
+impl<'a, T> NumOps<&'a Vector<T>, Vector<T>> for Vector<T> where T: NumOps<T, T> + Copy {}
+impl<'a, T> NumOps<&'a Vector<T>, Vector<T>> for &'a Vector<T> where T: NumOps<T, T> + Copy {}
+
 impl<T> From<T> for Vector<T>
 where
     T: NumOps + Copy,
@@ -34,15 +44,6 @@ impl<T> From<Vec<T>> for Vector<T> {
     }
 }
 
-impl<T> One for Vector<T>
-where
-    T: One,
-{
-    fn one() -> Self {
-        Vector::Scalar(T::one())
-    }
-}
-
 impl<'a, T> From<&'a Vector<T>> for Vector<T>
 where
     T: Clone,
@@ -52,8 +53,35 @@ where
     }
 }
 
-macro_rules! _binary_element_op_scalar {
-    ($Trait:tt, $f:ident, $LHS:ty, $RHS:ty, *) => {
+macro_rules! impl_const_op {
+    ($Trait:path, $fn:ident) => {
+        impl<T> $Trait for Vector<T>
+        where
+            T: $Trait,
+        {
+            fn $fn() -> Self {
+                Vector::Scalar(T::$fn())
+            }
+        }
+    };
+}
+
+impl_const_op!(crate::ops::One, one);
+impl_const_op!(crate::ops::Half, half);
+
+macro_rules! impl_binary_op {
+    ($Trait:tt, $f:ident) => {
+        impl_binary_op!($Trait, $f, &'a Vector<T>, &'a T, scalar*);
+        impl_binary_op!($Trait, $f, Vector<T>, &'a T, scalar*);
+        impl_binary_op!($Trait, $f, &'a Vector<T>, T, scalar);
+        impl_binary_op!($Trait, $f, Vector<T>, T, scalar);
+
+        impl_binary_op!($Trait, $f, &'a Vector<T>, &'a Vector<T>, vec);
+        impl_binary_op!($Trait, $f, Vector<T>, &'a Vector<T>, vec);
+        impl_binary_op!($Trait, $f, &'a Vector<T>, Vector<T>, vec);
+        impl_binary_op!($Trait, $f, Vector<T>, Vector<T>, vec);
+    };
+    ($Trait:tt, $f:ident, $LHS:ty, $RHS:ty, scalar*) => {
         #[allow(clippy::extra_unused_lifetimes)]
         impl<'a, T> $Trait<$RHS> for $LHS
         where
@@ -69,7 +97,7 @@ macro_rules! _binary_element_op_scalar {
             }
         }
     };
-    ($Trait:tt, $f:ident, $LHS:ty, $RHS:ty, ) => {
+    ($Trait:tt, $f:ident, $LHS:ty, $RHS:ty, scalar) => {
         #[allow(clippy::extra_unused_lifetimes)]
         impl<'a, T> $Trait<$RHS> for $LHS
         where
@@ -85,9 +113,7 @@ macro_rules! _binary_element_op_scalar {
             }
         }
     };
-}
-macro_rules! _binary_element_op_vec {
-    ($Trait:tt, $f:ident, $LHS:ty, $RHS:ty) => {
+    ($Trait:tt, $f:ident, $LHS:ty, $RHS:ty, vec) => {
         #[allow(clippy::extra_unused_lifetimes)]
         impl<'a, T> $Trait<$RHS> for $LHS
         where
@@ -116,40 +142,45 @@ macro_rules! _binary_element_op_vec {
     };
 }
 
-macro_rules! binary_element_op {
-    ($Trait:tt, $f:ident) => {
-        _binary_element_op_scalar!($Trait, $f, &'a Vector<T>, &'a T, *);
-        _binary_element_op_scalar!($Trait, $f, Vector<T>, &'a T, *);
-        _binary_element_op_scalar!($Trait, $f, &'a Vector<T>, T, );
-        _binary_element_op_scalar!($Trait, $f, Vector<T>, T, );
+impl_binary_op!(Add, add);
+impl_binary_op!(Sub, sub);
+impl_binary_op!(Mul, mul);
+impl_binary_op!(Div, div);
+impl_binary_op!(Pow, pow);
+impl_binary_op!(Log, log);
 
-        _binary_element_op_vec!($Trait, $f, &'a Vector<T>, &'a Vector<T>);
-        _binary_element_op_vec!($Trait, $f, Vector<T>, &'a Vector<T>);
-        _binary_element_op_vec!($Trait, $f, &'a Vector<T>, Vector<T>);
-        _binary_element_op_vec!($Trait, $f, Vector<T>, Vector<T>);
+macro_rules! impl_unary_op {
+    ($Trait:tt, $($fn:ident),+) => {
+        impl_unary_op!($Trait, $($fn),+: Vector<T>);
+        impl_unary_op!($Trait, $($fn),+: &'a Vector<T>);
+    };
+    ($Trait:tt, $($fn:ident),+: $LHS:ty) => {
+        #[allow(clippy::extra_unused_lifetimes)]
+        impl<'a, T> $Trait for $LHS
+        where
+            T: $Trait<Output = T> + Copy,
+        {
+            type Output = Vector<T>;
+
+            $(
+                fn $fn(self) -> Self::Output {
+                    match self {
+                        Vector::Vec(v) => Vector::Vec(v.iter().map(|a| a.$fn()).collect()),
+                        Vector::Scalar(s) => Vector::Scalar(s.$fn()),
+                    }
+                }
+            )+
+        }
     };
 }
 
-binary_element_op!(Add, add);
-binary_element_op!(Sub, sub);
-binary_element_op!(Mul, mul);
-binary_element_op!(Div, div);
-binary_element_op!(Pow, pow);
-binary_element_op!(Log, log);
-
-// impl<T> Neg for Vector<T>
-// where
-//     T: Neg<Output = T> + Copy,
-// {
-//     type Output = Vector<T>;
-
-//     fn neg(self) -> Self::Output {
-//         match self {
-//             Vector::Vec(v) => Vector::Vec(v.iter().map(Neg::neg).collect()),
-//             Vector::Scalar(s) => Vector::Scalar(s.neg()),
-//         }
-//     }
-// }
+impl_unary_op!(Neg, neg);
+impl_unary_op!(Abs, abs);
+impl_unary_op!(Square, square);
+impl_unary_op!(Sqrt, sqrt);
+impl_unary_op!(Ln, ln);
+impl_unary_op!(Exp, exp);
+impl_unary_op!(Trig, sin, cos, tan);
 
 #[cfg(test)]
 mod tests {
