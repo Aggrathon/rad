@@ -12,22 +12,30 @@ pub trait NumOps<RHS = Self, O = Self>:
     + One
     + Ln<Output = O>
     + Exp<Output = O>
-    + Sqrt<Output = O>
     + Abs<Output = O>
     + Pow<RHS, Output = O>
-    + Wop<RHS, Output = O>
     + Log<RHS, Output = O>
-    + Gol<RHS, Output = O>
-    + Trig<Output = O>
+// These are OPTIONAL additional traits:
+// + Half
+// + Square<Output = O>
+// + Sqrt<Output = O>
+// + Trig<Output = O>
 {
 }
 
-impl NumOps for f32 {}
-impl NumOps for f64 {}
+impl NumOps<f32, f32> for f32 {}
+impl NumOps<&f32, f32> for f32 {}
+impl NumOps<f64, f64> for f64 {}
+impl NumOps<&f64, f64> for f64 {}
 
 pub trait One {
     /// Returns the multiplicative identity element of `Self`, `1`.
     fn one() -> Self;
+}
+
+pub trait Half {
+    /// Returns the multiplicative halving of `Self`, `0.5`.
+    fn half() -> Self;
 }
 
 /// Unary operator for calculating the natural logarithm.
@@ -75,6 +83,21 @@ pub trait Sqrt {
     fn sqrt(self) -> Self::Output;
 }
 
+/// Unary operator for calculating the square.
+pub trait Square {
+    /// The result after applying the operator.
+    type Output;
+
+    /// Returns the square of `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// assert!(2.0f32*2.0, Square::square(2.0f32));
+    /// ```
+    fn square(self) -> Self::Output;
+}
+
 /// Unary operator for calculating the absolute value.
 pub trait Abs {
     /// The result after applying the operator.
@@ -105,21 +128,6 @@ pub trait Pow<RHS = Self> {
     fn pow(self, rhs: RHS) -> Self::Output;
 }
 
-/// Binary operator for raising a base to the value.
-pub trait Wop<RHS = Self> {
-    /// The result after applying the operator.
-    type Output;
-
-    /// Returns the `lhs` to the power of `self`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// assert_eq!(2.0f32.powf(2.0f32), Wop::wop(2.0f32, 2.0f32));
-    /// ```
-    fn wop(self, lhs: RHS) -> Self::Output;
-}
-
 /// Binary operator for calculating the logarithm for a specified bases.
 pub trait Log<RHS = Self> {
     /// The result after applying the operator.
@@ -133,21 +141,6 @@ pub trait Log<RHS = Self> {
     /// assert_eq!(3.0f32.log(2.0f32), Log::log(3.0f32, 2.0f32));
     /// ```
     fn log(self, rhs: RHS) -> Self::Output;
-}
-
-/// Binary operator for calculating the logarithm using the value as base.
-pub trait Gol<RHS = Self> {
-    /// The result after applying the operator.
-    type Output;
-
-    /// Returns the logarithm of `lhs` with the base `self`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// assert_eq!(3.0f32.log(2.0f32), Gol::log(2.0f32, 3.0f32));
-    /// ```
-    fn gol(self, lhs: RHS) -> Self::Output;
 }
 
 /// Unary operators for trigonometric functions.
@@ -183,19 +176,21 @@ pub trait Trig {
     fn tan(self) -> Self::Output;
 }
 
-macro_rules! one_impl {
-    ($T:ty, $v:expr) => {
-        impl One for $T {
+macro_rules! const_impl {
+    ($T:ty,$Trait:ty, $fn:ident, $v:expr) => {
+        impl $Trait for $T {
             #[inline]
-            fn one() -> $T {
+            fn $fn() -> $T {
                 $v
             }
         }
     };
 }
 
-one_impl!(f32, 1.0);
-one_impl!(f64, 1.0);
+const_impl!(f32, One, one, 1.0);
+const_impl!(f64, One, one, 1.0);
+const_impl!(f32, Half, half, 0.5);
+const_impl!(f64, Half, half, 0.5);
 
 macro_rules! unary_impl {
     ($T:ty, $Trait:ty, $($f:ident),+) => {
@@ -233,6 +228,31 @@ unary_impl!(f32, Abs, abs);
 unary_impl!(f64, Abs, abs);
 unary_impl!(f32, Trig, sin, cos, tan);
 unary_impl!(f64, Trig, sin, cos, tan);
+
+macro_rules! square_impl {
+    ($T:ty, $Trait:ty, $f:ident) => {
+        impl $Trait for $T {
+            type Output = $T;
+
+            #[inline]
+            fn $f(self) -> Self::Output {
+                self * self
+            }
+        }
+
+        impl $Trait for &$T {
+            type Output = $T;
+
+            #[inline]
+            fn $f(self) -> Self::Output {
+                (*self) * self
+            }
+        }
+    };
+}
+
+square_impl!(f32, Square, square);
+square_impl!(f64, Square, square);
 
 macro_rules! binary_impl {
     ($T:ty, $Trait:tt, $f1:tt, $f2:tt) => {
@@ -279,51 +299,6 @@ binary_impl!(f64, Log, log, log);
 binary_impl!(f32, Pow, pow, powf);
 binary_impl!(f64, Pow, pow, powf);
 
-macro_rules! rev_binary_impl {
-    ($T:ty, $Trait:tt, $f1:tt, $f2:tt) => {
-        impl $Trait<$T> for $T {
-            type Output = $T;
-
-            #[inline]
-            fn $f1(self, rhs: $T) -> Self::Output {
-                rhs.$f2(self)
-            }
-        }
-
-        impl $Trait<$T> for &$T {
-            type Output = $T;
-
-            #[inline]
-            fn $f1(self, rhs: $T) -> Self::Output {
-                rhs.$f2(*self)
-            }
-        }
-
-        impl $Trait<&$T> for $T {
-            type Output = $T;
-
-            #[inline]
-            fn $f1(self, rhs: &$T) -> Self::Output {
-                (*rhs).$f2(self)
-            }
-        }
-
-        impl $Trait<&$T> for &$T {
-            type Output = $T;
-
-            #[inline]
-            fn $f1(self, rhs: &$T) -> Self::Output {
-                (*rhs).$f2(*self)
-            }
-        }
-    };
-}
-
-rev_binary_impl!(f32, Wop, wop, powf);
-rev_binary_impl!(f64, Wop, wop, powf);
-rev_binary_impl!(f32, Gol, gol, log);
-rev_binary_impl!(f64, Gol, gol, log);
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,9 +315,7 @@ mod tests {
             assert_eq!(Trig::tan(a), a.tan());
             for b in [1.0f32, 1. / 3., -6.] {
                 assert_eq!(Pow::pow(a.abs(), b), a.abs().powf(b));
-                assert_eq!(Wop::wop(a, b.abs()), b.abs().powf(a));
                 assert_eq!(Log::log(a.abs(), b.abs()), a.abs().log(b.abs()));
-                assert_eq!(Gol::gol(a.abs(), b.abs()), b.abs().log(a.abs()));
             }
         }
         for a in [1.0f64, -2.453] {
@@ -355,9 +328,7 @@ mod tests {
             assert_eq!(Trig::tan(a), a.tan());
             for b in [2.0f64, -0.1] {
                 assert_eq!(Pow::pow(a.abs(), b), a.abs().powf(b));
-                assert_eq!(Wop::wop(a, b.abs()), b.abs().powf(a));
                 assert_eq!(Log::log(a.abs(), b.abs()), a.abs().log(b.abs()));
-                assert_eq!(Gol::gol(a.abs(), b.abs()), b.abs().log(a.abs()));
             }
         }
     }

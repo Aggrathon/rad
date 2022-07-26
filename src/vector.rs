@@ -1,6 +1,6 @@
 use std::ops::*;
 
-use crate::ops::{Log, NumOps, One, Pow, Wop};
+use crate::ops::{Log, NumOps, One, Pow};
 
 #[derive(PartialEq, Debug, Clone)]
 enum Vector<T> {
@@ -136,7 +136,6 @@ binary_element_op!(Mul, mul);
 binary_element_op!(Div, div);
 binary_element_op!(Pow, pow);
 binary_element_op!(Log, log);
-binary_element_op!(Wop, wop);
 
 // impl<T> Neg for Vector<T>
 // where
