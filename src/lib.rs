@@ -1,3 +1,3 @@
-mod forward;
-mod ops;
-mod vector;
+pub mod forward;
+pub mod ops;
+pub mod vector;

@@ -1,4 +1,4 @@
-use std::ops::*;
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// A trait enforcing some basic numerical operations.
 /// Designed to be compatible with floating point numbers.
@@ -9,13 +9,13 @@ pub trait NumOps<RHS = Self, O = Self>:
     + Mul<RHS, Output = O>
     + Div<RHS, Output = O>
     + Neg<Output = O>
-    + One
     + Ln<Output = O>
     + Exp<Output = O>
     + Abs<Output = O>
     + Pow<RHS, Output = O>
     + Log<RHS, Output = O>
 // These are OPTIONAL additional traits:
+// + One
 // + Half
 // + Square<Output = O>
 // + Sqrt<Output = O>
@@ -25,8 +25,12 @@ pub trait NumOps<RHS = Self, O = Self>:
 
 impl NumOps<f32, f32> for f32 {}
 impl NumOps<&f32, f32> for f32 {}
+impl NumOps<f32, f32> for &f32 {}
+impl NumOps<&f32, f32> for &f32 {}
 impl NumOps<f64, f64> for f64 {}
 impl NumOps<&f64, f64> for f64 {}
+impl NumOps<f64, f64> for &f64 {}
+impl NumOps<&f64, f64> for &f64 {}
 
 pub trait One {
     /// Returns the multiplicative identity element of `Self`, `1`.
@@ -45,10 +49,11 @@ pub trait Ln {
 
     /// Returns the natural logarithm of `self`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
-    /// assert!((1.0 - Ln::ln(1.0f32).exp()).abs() < 1e-4);
+    /// use rad::ops::*;
+    /// assert!((1.0f32 - Ln::ln(1.0f32).exp()).abs() < 1e-4);
     /// ```
     fn ln(self) -> Self::Output;
 }
@@ -60,9 +65,10 @@ pub trait Exp {
 
     /// Returns the natural exponent of `self`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
+    /// use rad::ops::*;
     /// assert!((1.0 - Exp::exp(1.0f32).ln()).abs() < 1e-4);
     /// ```
     fn exp(self) -> Self::Output;
@@ -75,9 +81,10 @@ pub trait Sqrt {
 
     /// Returns the square root of `self`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
+    /// use rad::ops::*;
     /// assert!((2.0f32.sqrt() - Sqrt::sqrt(2.0f32)).abs() < 1e-4);
     /// ```
     fn sqrt(self) -> Self::Output;
@@ -90,10 +97,11 @@ pub trait Square {
 
     /// Returns the square of `self`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
-    /// assert!(2.0f32*2.0, Square::square(2.0f32));
+    /// use rad::ops::*;
+    /// assert_eq!(2.0f32*2.0, Square::square(2.0f32));
     /// ```
     fn square(self) -> Self::Output;
 }
@@ -105,9 +113,10 @@ pub trait Abs {
 
     /// Returns the absolute value of `self`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
+    /// use rad::ops::*;
     /// assert_eq!(2.0f32, Abs::abs(-2.0f32));
     /// ```
     fn abs(self) -> Self::Output;
@@ -120,9 +129,10 @@ pub trait Pow<RHS = Self> {
 
     /// Returns `self` to the power `rhs`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
+    /// use rad::ops::*;
     /// assert!((2.0f32.powf(2.0) - Pow::pow(2.0f32, 2.0)).abs() < 1e-4);
     /// ```
     fn pow(self, rhs: RHS) -> Self::Output;
@@ -135,9 +145,10 @@ pub trait Log<RHS = Self> {
 
     /// Returns the logarithm of `self` with the base `rhs`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
+    /// use rad::ops::*;
     /// assert_eq!(3.0f32.log(2.0f32), Log::log(3.0f32, 2.0f32));
     /// ```
     fn log(self, rhs: RHS) -> Self::Output;
@@ -150,27 +161,30 @@ pub trait Trig {
 
     /// Returns the sinus `self`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
+    /// use rad::ops::*;
     /// assert!((2.0f32.sin() - Trig::sin(2.0f32)).abs() < 1e-4);
     /// ```
     fn sin(self) -> Self::Output;
 
     /// Returns the cosinus `self`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
+    /// use rad::ops::*;
     /// assert!((2.0f32.cos() - Trig::cos(2.0f32)).abs() < 1e-4);
     /// ```
     fn cos(self) -> Self::Output;
 
     /// Returns the Tangens `self`.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
+    /// use rad::ops::*;
     /// assert!((2.0f32.tan() - Trig::tan(2.0f32)).abs() < 1e-4);
     /// ```
     fn tan(self) -> Self::Output;
