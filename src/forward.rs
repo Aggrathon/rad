@@ -6,6 +6,8 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 /// Wrap the parameter you want to differentiate and do the calculations normally.
 /// The gradient vill automatically be accumulated.
 ///
+/// Note that the default implementations of gradients for numerical operations assume that the operations are implemented normally (element-wise).
+///
 /// # Example
 /// ```
 /// use rad::forward::FAD;
@@ -16,7 +18,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 /// assert!((y.value - 1.7339948).abs() < 1e-6, "{:?}", y);
 /// assert!((y.grad - -0.0048572426).abs() < 1e-6, "{:?}", y);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(clippy::upper_case_acronyms)]
 pub struct FAD<T> {
     /// The wrapped value, usually a f32/f64 or a vector/matrix/tensor.
@@ -55,12 +57,121 @@ where
         + Div<O, Output = O>
         + Sub<T, Output = O>
         + Pow<O, Output = O>
+        + Signum<Output = O>
         + One
         + Into<O>
         + Clone,
     O: Sub<O, Output = O> + Mul<O, Output = O> + Clone,
 {
 }
+
+impl<'a, T, O> NumOps<T, FAD<O>> for &'a FAD<T>
+where
+    T: Mul<O, Output = O> + Sub<T, Output = O> + One + Clone,
+    &'a T: NumOps<T, O>
+        + Mul<O, Output = O>
+        + Div<O, Output = O>
+        + Div<&'a T, Output = O>
+        + Pow<O, Output = O>
+        + Signum<Output = O>
+        + Into<O>,
+    O: Sub<O, Output = O> + Mul<O, Output = O> + Clone,
+{
+}
+
+impl<'a, T, O> NumOps<&'a T, FAD<O>> for FAD<T>
+where
+    T: NumOps<&'a T, O>
+        + Mul<T, Output = O>
+        + Mul<O, Output = O>
+        + Div<T, Output = O>
+        + Div<O, Output = O>
+        + Pow<T, Output = O>
+        + Pow<O, Output = O>
+        + Signum<Output = O>
+        + One
+        + Into<O>
+        + Clone,
+    &'a T: Mul<O, Output = O> + Sub<T, Output = O> + Into<O>,
+    O: Mul<O, Output = O> + Clone,
+{
+}
+
+impl<'a, T, O> NumOps<&'a T, FAD<O>> for &'a FAD<T>
+where
+    T: One,
+    &'a T: NumOps<&'a T, O>
+        + Mul<O, Output = O>
+        + Sub<T, Output = O>
+        + Div<O, Output = O>
+        + Pow<O, Output = O>
+        + Signum<Output = O>
+        + Into<O>,
+    O: Mul<O, Output = O> + Clone,
+{
+}
+
+impl<T, O> NumOpts<FAD<O>> for FAD<T>
+where
+    T: NumOpts<O>
+        + Half
+        + Mul<O, Output = O>
+        + Sqrt<Output = O>
+        + Two
+        + Clone
+        + Div<O, Output = O>
+        + Mul<T, Output = O>,
+    O: Neg<Output = O> + Square<Output = O> + Div<O, Output = O> + Clone,
+{
+}
+
+impl<'a, T, O> NumOpts<FAD<O>> for &'a FAD<T>
+where
+    T: Half + Two + Mul<T, Output = O> + Mul<O, Output = O>,
+    &'a T: NumOpts<O>
+        + Mul<O, Output = O>
+        + Mul<T, Output = O>
+        + Sqrt<Output = O>
+        + Div<O, Output = O>
+        + Mul<&'a T, Output = O>,
+    O: Neg<Output = O> + Square<Output = O> + Div<O, Output = O> + Clone,
+{
+}
+
+impl<T> NumConsts for FAD<T> where T: NumConsts {}
+
+impl<T, O> AggOps<FAD<O>> for FAD<T>
+where
+    T: AggOps<O> + Mul<O, Output = O> + Clone + Into<O>,
+    O: Div<T, Output = O> + Clone,
+{
+}
+
+impl<'a, T, O> AggOps<FAD<O>> for &'a FAD<T>
+where
+    &'a T: AggOps<O> + Mul<O, Output = O> + Into<O>,
+    O: Div<&'a T, Output = O> + Clone,
+{
+}
+
+macro_rules! impl_const_op {
+    ($Trait:path, $fn:ident) => {
+        impl<T> $Trait for FAD<T>
+        where
+            T: $Trait + Into<FAD<T>>,
+        {
+            #[inline]
+            fn $fn() -> Self {
+                T::$fn().into()
+            }
+        }
+    };
+}
+
+impl_const_op!(crate::ops::One, one);
+impl_const_op!(crate::ops::Zero, zero);
+impl_const_op!(crate::ops::Half, half);
+impl_const_op!(crate::ops::Two, two);
 
 impl<T, O> Add<T> for FAD<T>
 where
@@ -74,15 +185,6 @@ where
             value: self.value.add(rhs),
             grad: self.grad.into(),
         }
-    }
-}
-
-impl<T> One for FAD<T>
-where
-    T: One,
-{
-    fn one() -> Self {
-        T::one().into()
     }
 }
 
@@ -284,12 +386,31 @@ where
 
 impl<T, O> Abs for FAD<T>
 where
-    T: Abs<Output = O>,
+    T: Abs<Output = O> + Signum<Output = O> + Mul<O, Output = O> + Clone,
 {
     type Output = FAD<O>;
 
+    #[inline]
     fn abs(self) -> Self::Output {
-        todo!()
+        FAD {
+            value: self.value.clone().abs(),
+            grad: self.grad * self.value.signum(),
+        }
+    }
+}
+
+impl<'a, T, O> Abs for &'a FAD<T>
+where
+    &'a T: Abs<Output = O> + Signum<Output = O> + Mul<O, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn abs(self) -> Self::Output {
+        FAD {
+            value: self.value.abs(),
+            grad: &self.grad * self.value.signum(),
+        }
     }
 }
 
@@ -348,8 +469,74 @@ where
     #[inline]
     fn div(self, rhs: &'a T) -> Self::Output {
         FAD {
-            value: self.value.div(rhs),
-            grad: self.grad.div(rhs),
+            value: self.value.divide(rhs),
+            grad: self.grad.divide(rhs),
+        }
+    }
+}
+
+impl<T, O> Div2<FAD<T>> for T
+where
+    T: Div<T, Output = O> + Square<Output = O> + Div<O, Output = O> + Clone,
+    O: Neg<Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn divide(self, rhs: FAD<T>) -> Self::Output {
+        FAD {
+            value: self.div(rhs.value.clone()),
+            grad: rhs.grad.div(rhs.value.square()).neg(),
+        }
+    }
+}
+
+impl<'a, T, O> Div2<FAD<T>> for &'a T
+where
+    &'a T: Div<T, Output = O>,
+    T: Square<Output = O> + Div<O, Output = O> + Clone,
+    O: Neg<Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn divide(self, rhs: FAD<T>) -> Self::Output {
+        FAD {
+            value: self.div(rhs.value.clone()),
+            grad: rhs.grad.div(rhs.value.square()).neg(),
+        }
+    }
+}
+
+impl<'a, T, O> Div2<&'a FAD<T>> for T
+where
+    T: Div<&'a T, Output = O>,
+    &'a T: Square<Output = O> + Div<O, Output = O>,
+    O: Neg<Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn divide(self, rhs: &'a FAD<T>) -> Self::Output {
+        FAD {
+            value: self.div(&rhs.value),
+            grad: (&rhs.grad).div(rhs.value.square()).neg(),
+        }
+    }
+}
+
+impl<'a, T, O> Div2<&'a FAD<T>> for &'a T
+where
+    &'a T: Div<&'a T, Output = O> + Square<Output = O> + Div<O, Output = O>,
+    O: Neg<Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn divide(self, rhs: &'a FAD<T>) -> Self::Output {
+        FAD {
+            value: self.div(&rhs.value),
+            grad: (&rhs.grad).div(rhs.value.square()).neg(),
         }
     }
 }
@@ -438,7 +625,7 @@ where
     fn exp(self) -> Self::Output {
         let value = self.value.exp();
         let grad = self.grad * value.clone();
-        FAD { value, grad: grad }
+        FAD { value, grad }
     }
 }
 
@@ -453,7 +640,7 @@ where
     fn exp(self) -> Self::Output {
         let value = self.value.exp();
         let grad = &self.grad * value.clone();
-        FAD { value, grad: grad }
+        FAD { value, grad }
     }
 }
 
@@ -468,7 +655,7 @@ where
     fn pow(self, lhs: FAD<T>) -> Self::Output {
         let value = self.clone().pow(lhs.value);
         let grad = lhs.grad * (self.ln() * value.clone());
-        FAD { value, grad: grad }
+        FAD { value, grad }
     }
 }
 
@@ -484,7 +671,7 @@ where
     fn pow(self, lhs: &'a FAD<T>) -> Self::Output {
         let value = self.clone().pow(&lhs.value);
         let grad = &lhs.grad * (self.ln() * value.clone());
-        FAD { value, grad: grad }
+        FAD { value, grad }
     }
 }
 
@@ -500,7 +687,7 @@ where
     fn pow(self, lhs: FAD<T>) -> Self::Output {
         let value = self.pow(lhs.value);
         let grad = lhs.grad * (self.ln() * value.clone());
-        FAD { value, grad: grad }
+        FAD { value, grad }
     }
 }
 
@@ -515,7 +702,7 @@ where
     fn pow(self, lhs: &'a FAD<T>) -> Self::Output {
         let value = self.pow(&lhs.value);
         let grad = &lhs.grad * (self.ln() * value.clone());
-        FAD { value, grad: grad }
+        FAD { value, grad }
     }
 }
 
@@ -607,6 +794,37 @@ where
         FAD {
             value: self.value.log(rhs),
             grad: &self.grad / (rhs * self.value.ln()),
+        }
+    }
+}
+
+impl<T, O> Square for FAD<T>
+where
+    T: Square<Output = O> + Two + Mul<T, Output = O> + Clone + Mul<O, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn square(self) -> Self::Output {
+        FAD {
+            value: self.value.clone().square(),
+            grad: self.grad * (T::two() * self.value),
+        }
+    }
+}
+
+impl<'a, T, O> Square for &'a FAD<T>
+where
+    &'a T: Square<Output = O> + Mul<&'a T, Output = O>,
+    T: Two + Mul<O, Output = O>,
+{
+    type Output = FAD<O>;
+
+    #[inline]
+    fn square(self) -> Self::Output {
+        FAD {
+            value: self.value.square(),
+            grad: T::two() * (&self.grad * &self.value),
         }
     }
 }
@@ -720,13 +938,73 @@ impl<T, E> From<FAD<Result<T, E>>> for Result<FAD<T>, E> {
     }
 }
 
+impl<T, O> Sum for FAD<T>
+where
+    T: Sum<Output = O> + Into<O>,
+{
+    type Output = FAD<O>;
+
+    fn sum(self) -> Self::Output {
+        FAD {
+            value: self.value.sum(),
+            grad: self.grad.into(),
+        }
+    }
+}
+
+impl<'a, T, O> Sum for &'a FAD<T>
+where
+    &'a T: Sum<Output = O> + Into<O>,
+{
+    type Output = FAD<O>;
+
+    fn sum(self) -> Self::Output {
+        FAD {
+            value: self.value.sum(),
+            grad: (&self.grad).into(),
+        }
+    }
+}
+
+impl<T, O> Prod for FAD<T>
+where
+    T: Prod<Output = O> + Mul<O, Output = O> + Clone,
+    O: Div<T, Output = O> + Clone,
+{
+    type Output = FAD<O>;
+
+    fn prod(self) -> Self::Output {
+        let value = self.value.clone().prod();
+        FAD {
+            value: value.clone(),
+            grad: self.grad * (value / self.value),
+        }
+    }
+}
+
+impl<'a, T, O> Prod for &'a FAD<T>
+where
+    &'a T: Prod<Output = O> + Mul<O, Output = O>,
+    O: Div<&'a T, Output = O> + Clone,
+{
+    type Output = FAD<O>;
+
+    fn prod(self) -> Self::Output {
+        let value = self.value.prod();
+        FAD {
+            value: value.clone(),
+            grad: &self.grad * (value / &self.value),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     macro_rules! assert_fad_eq {
         ($a:expr, $b:expr) => {
-            let a: FAD<f32> = FAD::from($a);
+            let a: FAD<f32> = $a; // FAD::from($a);
             let b: FAD<f32> = FAD::from($b);
             assert!((a.value - b.value).abs() < 1e-4, "{:?} != {:?}", a, b);
             assert!((a.grad - b.grad).abs() < 1e-4, "{:?} != {:?}", a, b);
@@ -741,19 +1019,63 @@ mod tests {
                 assert_fad_eq!(b.clone() + c, (a + c, 1.));
                 assert_fad_eq!(b.clone() * c, (a * c, c));
                 assert_fad_eq!(b.clone() * 2. + c, (a * 2. + c, 2.));
-                assert_fad_eq!((b.clone() + c) * -2., ((a + c) * -2., -2.));
+                assert_fad_eq!((b.clone() - c) * -2., ((a - c) * -2., -2.));
                 assert_fad_eq!(-b.clone(), (-a, -1.));
                 assert_fad_eq!(b.clone() / c, (a / c, 1. / c));
+                assert_fad_eq!(c.divide(b.clone()), (c / a, -1.0 / a / a));
                 assert_fad_eq!(b.clone().pow(c), (a.powf(c), c * a.powf(c - 1.)));
                 assert_fad_eq!(c.pow(b.clone()), (c.powf(a), c.ln() * c.powf(a)));
-                assert_fad_eq!(b.clone().log(c), (a.log(c), 1. / c / a.ln()));
+                assert_fad_eq!((&b).log(c), (a.log(c), 1. / c / a.ln()));
+                assert_fad_eq!(b + c, (a + c, 1.));
+                assert_fad_eq!((&b) * c, (a * c, c));
+                assert_fad_eq!((&b) * 2. + c, (a * 2. + c, 2.));
+                assert_fad_eq!((b - c) * -2., ((a - c) * -2., -2.));
+                assert_fad_eq!(-(&b), (-a, -1.));
+                assert_fad_eq!((&b) / c, (a / c, 1. / c));
+                assert_fad_eq!(c.divide(&b), (c / a, -1.0 / a / a));
+                assert_fad_eq!((&b).pow(c), (a.powf(c), c * a.powf(c - 1.)));
+                assert_fad_eq!(c.pow(&b), (c.powf(a), c.ln() * c.powf(a)));
+                assert_fad_eq!((&b).log(c), (a.log(c), 1. / c / a.ln()));
             }
             assert_fad_eq!(b.clone().exp(), (a.exp(), a.exp()));
             assert_fad_eq!(b.clone().ln(), (a.ln(), 1. / a));
             assert_fad_eq!(b.clone().sqrt(), (a.sqrt(), 0.5 / a.sqrt()));
+            assert_fad_eq!(b.clone().square(), (a.square(), 2.0 * a));
             assert_fad_eq!(b.clone().sin(), (a.sin(), a.cos()));
             assert_fad_eq!(b.clone().cos(), (a.cos(), -a.sin()));
             assert_fad_eq!(b.clone().tan(), (a.tan(), 1. / a.cos() / a.cos()));
+            assert_fad_eq!((&b).exp(), (a.exp(), a.exp()));
+            assert_fad_eq!((&b).ln(), (a.ln(), 1. / a));
+            assert_fad_eq!((&b).sqrt(), (a.sqrt(), 0.5 / a.sqrt()));
+            assert_fad_eq!((&b).square(), (a.square(), 2.0 * a));
+            assert_fad_eq!((&b).sin(), (a.sin(), a.cos()));
+            assert_fad_eq!((&b).cos(), (a.cos(), -a.sin()));
+            assert_fad_eq!((&b).tan(), (a.tan(), 1. / a.cos() / a.cos()));
         }
     }
+
+    macro_rules! assert_impl {
+        ($T:ty: $Trait:path) => {
+            const _: () = {
+                fn f<'a, T: $Trait>() {}
+                fn assert_trait() {
+                    f::<$T>()
+                }
+            };
+        };
+        ($T:ty) => {
+            assert_impl!(FAD<$T>: NumOps<$T, FAD<$T>>);
+            // assert_impl!(&FAD<$T>: NumOps<$T, FAD<$T>>);
+            // assert_impl!(FAD<$T>: NumOps<&'a $T, FAD<$T>>);
+            // assert_impl!(&FAD<$T>: NumOps<&'a $T, FAD<$T>>);
+
+            assert_impl!(FAD<$T>: NumConsts);
+
+            assert_impl!(FAD<$T>: NumOpts<FAD<$T>>);
+            assert_impl!(&FAD<$T>: NumOpts<FAD<$T>>);
+        }
+    }
+
+    assert_impl!(f32);
+    assert_impl!(f64);
 }

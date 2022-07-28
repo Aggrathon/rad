@@ -1,45 +1,60 @@
+/// Traits for operations on numerical values
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// A trait enforcing some basic numerical operations.
-/// Designed to be compatible with floating point numbers.
-/// And also vectors and wrappers thereof.
-pub trait NumOps<RHS = Self, O = Self>:
-    Add<RHS, Output = O>
-    + Sub<RHS, Output = O>
-    + Mul<RHS, Output = O>
-    + Div<RHS, Output = O>
-    + Neg<Output = O>
-    + Ln<Output = O>
-    + Exp<Output = O>
-    + Abs<Output = O>
-    + Pow<RHS, Output = O>
-    + Log<RHS, Output = O>
+/// Designed to be compatible with floating point numbers, but also vectors and wrappers thereof.
+pub trait NumOps<RHS = Self, Output = Self>:
+    Add<RHS, Output = Output>
+    + Sub<RHS, Output = Output>
+    + Mul<RHS, Output = Output>
+    + Div<RHS, Output = Output>
+    + Neg<Output = Output>
+    + Ln<Output = Output>
+    + Exp<Output = Output>
+    + Abs<Output = Output>
+    + Pow<RHS, Output = Output>
+    + Log<RHS, Output = Output>
 // These are OPTIONAL additional traits:
-// + One
-// + Half
-// + Square<Output = O>
-// + Sqrt<Output = O>
-// + Trig<Output = O>
+// + Signum
+// + Square<Output = Output>
+// + Sqrt<Output = Output>
+// + Trig<Output = Output>
 {
 }
 
-impl NumOps<f32, f32> for f32 {}
-impl NumOps<&f32, f32> for f32 {}
-impl NumOps<f32, f32> for &f32 {}
-impl NumOps<&f32, f32> for &f32 {}
-impl NumOps<f64, f64> for f64 {}
-impl NumOps<&f64, f64> for f64 {}
-impl NumOps<f64, f64> for &f64 {}
-impl NumOps<&f64, f64> for &f64 {}
+/// A trait for additional, optional numerical operations
+pub trait NumOpts<Output>:
+    Square<Output = Output> + Sqrt<Output = Output> + Trig<Output = Output>
+// Since these collection of Operation traits are designed for use with automatic
+// gradients the optional trait `Signum` is not included since it lacks a gradient_
+// + Signum<Output = Output>
+{
+}
+
+/// A trait for producing some static values for numerical objects.
+pub trait NumConsts: One + Zero + Half + Two {}
+
+/// A trait for aggregation operations on collections of numerical values
+pub trait AggOps<Output = Self>: Sum<Output = Output> + Prod<Output = Output> {}
 
 pub trait One {
     /// Returns the multiplicative identity element of `Self`, `1`.
     fn one() -> Self;
 }
 
+pub trait Zero {
+    /// Returns the additive identity element of `Self`, `0`.
+    fn zero() -> Self;
+}
+
 pub trait Half {
     /// Returns the multiplicative halving of `Self`, `0.5`.
     fn half() -> Self;
+}
+
+pub trait Two {
+    /// Returns the multiplicative double of `Self`, `2.0`.
+    fn two() -> Self;
 }
 
 /// Unary operator for calculating the natural logarithm.
@@ -122,6 +137,27 @@ pub trait Abs {
     fn abs(self) -> Self::Output;
 }
 
+/// Unary operator for calculating the sign.
+pub trait Signum {
+    /// The result after applying the operator.
+    type Output;
+
+    /// Returns the sign of `self`:
+    /// - '+1' for `+0.0..infty`.
+    /// - '-1' for `-0.0..-infty`.
+    /// - 'NaN' for `NaN`
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rad::ops::*;
+    /// assert_eq!(1.0f32, Signum::signum(5.0f32));
+    /// assert_eq!(-1.0f32, Signum::signum(-2.0f32));
+    /// assert_eq!(-1.0f32, Signum::signum(-0.0f32));
+    /// ```
+    fn signum(self) -> Self::Output;
+}
+
 /// Binary operator for raising a value to a power.
 pub trait Pow<RHS = Self> {
     /// The result after applying the operator.
@@ -190,7 +226,65 @@ pub trait Trig {
     fn tan(self) -> Self::Output;
 }
 
-macro_rules! const_impl {
+/// Aggregation operator for summing values.
+pub trait Sum {
+    /// The result after applying the operator.
+    type Output;
+
+    /// Returns the sum of `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rad::ops::*;
+    /// assert!((Sum::sum(vec![1.0f32, 2.0, 3.0]) - 6.0).abs() < 1e-4);
+    /// ```
+    fn sum(self) -> Self::Output;
+}
+
+/// Aggregation operator for multiplying values.
+pub trait Prod {
+    /// The result after applying the operator.
+    type Output;
+
+    /// Returns the product of `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rad::ops::*;
+    /// assert!((Prod::prod(vec![1.0f32, 2.0, 3.0]) - 6.0).abs() < 1e-4);
+    /// ```
+    fn prod(self) -> Self::Output;
+}
+
+/// This is a copy of std::ops::Div to get around E0210
+pub trait Div2<RHS = Self> {
+    type Output;
+
+    fn divide(self, rhs: RHS) -> Self::Output;
+}
+
+// ################## Implementations ##################
+
+impl NumOps<f32, f32> for f32 {}
+impl NumOps<&f32, f32> for f32 {}
+impl NumOps<f32, f32> for &f32 {}
+impl NumOps<&f32, f32> for &f32 {}
+impl NumOps<f64, f64> for f64 {}
+impl NumOps<&f64, f64> for f64 {}
+impl NumOps<f64, f64> for &f64 {}
+impl NumOps<&f64, f64> for &f64 {}
+
+impl NumOpts<f32> for f32 {}
+impl NumOpts<f32> for &f32 {}
+impl NumOpts<f64> for f64 {}
+impl NumOpts<f64> for &f64 {}
+
+impl NumConsts for f32 {}
+impl NumConsts for f64 {}
+
+macro_rules! impl_const {
     ($T:ty,$Trait:ty, $fn:ident, $v:expr) => {
         impl $Trait for $T {
             #[inline]
@@ -201,12 +295,16 @@ macro_rules! const_impl {
     };
 }
 
-const_impl!(f32, One, one, 1.0);
-const_impl!(f64, One, one, 1.0);
-const_impl!(f32, Half, half, 0.5);
-const_impl!(f64, Half, half, 0.5);
+impl_const!(f32, One, one, 1.0);
+impl_const!(f64, One, one, 1.0);
+impl_const!(f32, Zero, zero, 0.0);
+impl_const!(f64, Zero, zero, 0.0);
+impl_const!(f32, Half, half, 0.5);
+impl_const!(f64, Half, half, 0.5);
+impl_const!(f32, Two, two, 2.0);
+impl_const!(f64, Two, two, 2.0);
 
-macro_rules! unary_impl {
+macro_rules! impl_unary {
     ($T:ty, $Trait:ty, $($f:ident),+) => {
         impl $Trait for $T {
             type Output = $T;
@@ -232,18 +330,20 @@ macro_rules! unary_impl {
     };
 }
 
-unary_impl!(f32, Exp, exp);
-unary_impl!(f64, Exp, exp);
-unary_impl!(f32, Ln, ln);
-unary_impl!(f64, Ln, ln);
-unary_impl!(f32, Sqrt, sqrt);
-unary_impl!(f64, Sqrt, sqrt);
-unary_impl!(f32, Abs, abs);
-unary_impl!(f64, Abs, abs);
-unary_impl!(f32, Trig, sin, cos, tan);
-unary_impl!(f64, Trig, sin, cos, tan);
+impl_unary!(f32, Exp, exp);
+impl_unary!(f64, Exp, exp);
+impl_unary!(f32, Ln, ln);
+impl_unary!(f64, Ln, ln);
+impl_unary!(f32, Sqrt, sqrt);
+impl_unary!(f64, Sqrt, sqrt);
+impl_unary!(f32, Abs, abs);
+impl_unary!(f64, Abs, abs);
+impl_unary!(f32, Signum, signum);
+impl_unary!(f64, Signum, signum);
+impl_unary!(f32, Trig, sin, cos, tan);
+impl_unary!(f64, Trig, sin, cos, tan);
 
-macro_rules! square_impl {
+macro_rules! impl_square {
     ($T:ty, $Trait:ty, $f:ident) => {
         impl $Trait for $T {
             type Output = $T;
@@ -259,16 +359,16 @@ macro_rules! square_impl {
 
             #[inline]
             fn $f(self) -> Self::Output {
-                (*self) * self
+                (*self) * (*self)
             }
         }
     };
 }
 
-square_impl!(f32, Square, square);
-square_impl!(f64, Square, square);
+impl_square!(f32, Square, square);
+impl_square!(f64, Square, square);
 
-macro_rules! binary_impl {
+macro_rules! impl_binary {
     ($T:ty, $Trait:tt, $f1:tt, $f2:tt) => {
         impl $Trait<$T> for $T {
             type Output = $T;
@@ -308,10 +408,43 @@ macro_rules! binary_impl {
     };
 }
 
-binary_impl!(f32, Log, log, log);
-binary_impl!(f64, Log, log, log);
-binary_impl!(f32, Pow, pow, powf);
-binary_impl!(f64, Pow, pow, powf);
+impl_binary!(f32, Log, log, log);
+impl_binary!(f64, Log, log, log);
+impl_binary!(f32, Pow, pow, powf);
+impl_binary!(f64, Pow, pow, powf);
+
+macro_rules! impl_agg {
+    ($T:ty, $AT:tt, $fna:ident, $ET:tt, $fne:ident, $IT:tt, $fni:ident) => {
+        #[allow(clippy::extra_unused_lifetimes)]
+        impl<'a, T> $AT for $T
+        where
+            T: $ET<T, Output = T> + $IT + Copy,
+        {
+            type Output = T;
+
+            #[inline]
+            fn $fna(self) -> Self::Output {
+                self.iter().fold(T::$fni(), |a, b| $ET::$fne(a, *b))
+            }
+        }
+    };
+}
+
+impl_agg!(Vec<T>, Sum, sum, Add, add, Zero, zero);
+impl_agg!(&'a Vec<T>, Sum, sum, Add, add, Zero, zero);
+impl_agg!(Vec<T>, Prod, prod, Mul, mul, One, one);
+impl_agg!(&'a Vec<T>, Prod, prod, Mul, mul, One, one);
+
+impl<T, O> Div2<T> for T
+where
+    T: Div<T, Output = O>,
+{
+    type Output = O;
+
+    fn divide(self, rhs: T) -> Self::Output {
+        self.div(rhs)
+    }
+}
 
 #[cfg(test)]
 mod tests {

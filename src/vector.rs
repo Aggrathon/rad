@@ -29,6 +29,19 @@ impl<'a, T> NumOps<Vector<T>, Vector<T>> for &'a Vector<T> where T: NumOps<T, T>
 impl<'a, T> NumOps<&'a Vector<T>, Vector<T>> for Vector<T> where T: NumOps<T, T> + Copy {}
 impl<'a, T> NumOps<&'a Vector<T>, Vector<T>> for &'a Vector<T> where T: NumOps<T, T> + Copy {}
 
+impl<T> NumConsts for Vector<T> where T: NumConsts {}
+
+impl<T> NumOpts<Vector<T>> for Vector<T> where T: NumOpts<T> + Copy {}
+impl<'a, T> NumOpts<Vector<T>> for &'a Vector<T> where T: NumOpts<T> + Copy {}
+
+impl<T> AggOps<Vector<T>> for Vector<T> where T: One + Zero + Mul<T, Output = T> + Add<T, Output = T>
+{}
+
+impl<'a, T> AggOps<Vector<T>> for &'a Vector<T> where
+    T: One + Zero + Mul<T, Output = T> + Add<T, Output = T> + Copy
+{
+}
+
 impl<T> From<T> for Vector<T>
 where
     T: NumOps + Copy,
@@ -59,6 +72,7 @@ macro_rules! impl_const_op {
         where
             T: $Trait,
         {
+            #[inline]
             fn $fn() -> Self {
                 Vector::Scalar(T::$fn())
             }
@@ -67,7 +81,9 @@ macro_rules! impl_const_op {
 }
 
 impl_const_op!(crate::ops::One, one);
+impl_const_op!(crate::ops::Zero, zero);
 impl_const_op!(crate::ops::Half, half);
+impl_const_op!(crate::ops::Two, two);
 
 macro_rules! impl_binary_op {
     ($Trait:tt, $f:ident) => {
@@ -81,6 +97,10 @@ macro_rules! impl_binary_op {
         impl_binary_op!($Trait, $f, &'a Vector<T>, Vector<T>, vec);
         impl_binary_op!($Trait, $f, Vector<T>, Vector<T>, vec);
     };
+    ($Trait:tt, $f:ident: rev) => {
+        impl_binary_op!($Trait, $f, T, &'a Vector<T>, scalar_rev);
+        impl_binary_op!($Trait, $f, T, Vector<T>, scalar_rev);
+    };
     ($Trait:tt, $f:ident, $LHS:ty, $RHS:ty, scalar*) => {
         #[allow(clippy::extra_unused_lifetimes)]
         impl<'a, T> $Trait<$RHS> for $LHS
@@ -89,6 +109,7 @@ macro_rules! impl_binary_op {
         {
             type Output = Vector<T>;
 
+            #[inline]
             fn $f(self, rhs: $RHS) -> Self::Output {
                 match self {
                     Vector::Vec(v) => Vector::Vec(v.iter().map(|v| v.$f(*rhs)).collect()),
@@ -105,10 +126,28 @@ macro_rules! impl_binary_op {
         {
             type Output = Vector<T>;
 
+            #[inline]
             fn $f(self, rhs: $RHS) -> Self::Output {
                 match self {
                     Vector::Vec(v) => Vector::Vec(v.iter().map(|v| v.$f(rhs)).collect()),
                     Vector::Scalar(v) => Vector::Scalar(v.$f(rhs)),
+                }
+            }
+        }
+    };
+    ($Trait:tt, $f:ident, $LHS:ty, $RHS:ty, scalar_rev) => {
+        #[allow(clippy::extra_unused_lifetimes)]
+        impl<'a, T> $Trait<$RHS> for $LHS
+        where
+            T: $Trait<T, Output = T> + Copy,
+        {
+            type Output = Vector<T>;
+
+            #[inline]
+            fn $f(self, rhs: $RHS) -> Self::Output {
+                match &rhs {
+                    Vector::Vec(v) => Vector::Vec(v.iter().map(|v| self.$f(*v)).collect()),
+                    Vector::Scalar(v) => Vector::Scalar(self.$f(*v)),
                 }
             }
         }
@@ -121,6 +160,7 @@ macro_rules! impl_binary_op {
         {
             type Output = Vector<T>;
 
+            #[inline]
             fn $f(self, rhs: $RHS) -> Self::Output {
                 match rhs {
                     Vector::Vec(vs) => match self {
@@ -148,6 +188,9 @@ impl_binary_op!(Mul, mul);
 impl_binary_op!(Div, div);
 impl_binary_op!(Pow, pow);
 impl_binary_op!(Log, log);
+impl_binary_op!(Pow, pow: rev);
+impl_binary_op!(Log, log: rev);
+impl_binary_op!(Div2, divide: rev);
 
 macro_rules! impl_unary_op {
     ($Trait:tt, $($fn:ident),+) => {
@@ -163,6 +206,7 @@ macro_rules! impl_unary_op {
             type Output = Vector<T>;
 
             $(
+                #[inline]
                 fn $fn(self) -> Self::Output {
                     match self {
                         Vector::Vec(v) => Vector::Vec(v.iter().map(|a| a.$fn()).collect()),
@@ -176,11 +220,48 @@ macro_rules! impl_unary_op {
 
 impl_unary_op!(Neg, neg);
 impl_unary_op!(Abs, abs);
+impl_unary_op!(Signum, signum);
 impl_unary_op!(Square, square);
 impl_unary_op!(Sqrt, sqrt);
 impl_unary_op!(Ln, ln);
 impl_unary_op!(Exp, exp);
 impl_unary_op!(Trig, sin, cos, tan);
+
+macro_rules! impl_agg_op {
+    ($Trait:tt, $fn:ident, $Trait2:tt, $fn2:ident, $Trait3:tt, $fn3:ident) => {
+        impl<T> $Trait for Vector<T>
+        where
+            T: $Trait3 + $Trait2<T, Output = T>,
+        {
+            type Output = Vector<T>;
+
+            fn $fn(self) -> Self::Output {
+                match self {
+                    Vector::Vec(v) => {
+                        Vector::Scalar(v.into_iter().fold(T::$fn3(), |a, b| a.$fn2(b)))
+                    }
+                    Vector::Scalar(v) => Vector::Scalar(v),
+                }
+            }
+        }
+        impl<'a, T> $Trait for &'a Vector<T>
+        where
+            T: $Trait3 + $Trait2<T, Output = T> + Copy,
+        {
+            type Output = Vector<T>;
+
+            fn $fn(self) -> Self::Output {
+                match self {
+                    Vector::Vec(v) => Vector::Scalar(v.iter().fold(T::$fn3(), |a, b| a.$fn2(*b))),
+                    Vector::Scalar(v) => Vector::Scalar(*v),
+                }
+            }
+        }
+    };
+}
+
+impl_agg_op!(Sum, sum, Add, add, Zero, zero);
+impl_agg_op!(Prod, prod, Mul, mul, One, one);
 
 #[cfg(test)]
 mod tests {
@@ -194,6 +275,19 @@ mod tests {
                 assert_eq!(
                     *(&$a).$fn(&$c).first().unwrap(),
                     ($a).first().unwrap().$fn(($c).first().unwrap())
+                );
+                assert_eq!(
+                    (&$a).$fn(&$c).first().unwrap(),
+                    (&$a).$fn(($c).first().unwrap()).first().unwrap()
+                );
+            )+
+        };
+        ($a:ident, $b:ident, $c:ident, rev: $($fn:ident),+) => {
+            $(
+                assert_eq!(
+                    (&$a).$fn(&$c).first().unwrap(),
+                    (*$a.first().unwrap()).$fn(&$c).first().unwrap(),
+                    "{:?}", (&$a).$fn(&$c)
                 );
             )+
         };
@@ -215,21 +309,61 @@ mod tests {
             Vector::from(vec![3.0, 1., 6.783, 1. / 7., 2.0]),
         );
         _scalar(Vector::from(2.0), Vector::from(3.0));
+        _scalar(Vector::from(vec![-6.378, 0.0]), Vector::from(2.0));
+        _scalar(Vector::from(-2.0), Vector::from(vec![2.0, -3., 0.0]));
     }
 
     fn _scalar(a: Vector<f32>, c: Vector<f32>) {
         let b = FAD::from(a.clone());
-        check_ops!(a, b, c: mul, add, sub, div);
-        // assert_eq!((&a).pow(&c), ((&b).pow(&c)).value);
-        // assert_eq!(&a.log(&c), (&b.log(&c)).value);
-        // assert_eq!((&a).exp_base(&c), ((&b).exp_base(&c)).value);
-        // check_ops!(a, b: neg);
-        // assert_eq!(-(&a), (-(&b)).value);
-        // assert_eq!(&a.ln(), (&b.ln()).value);
-        // assert_eq!(&a.exp(), (&b.exp()).value);
-        // assert_eq!(&a.sqrt(), (&b.sqrt()).value);
-        // assert_eq!(&a.sin(), (&b.sin()).value);
-        // assert_eq!(&a.cos(), (&b.cos()).value);
-        // assert_eq!(&a.tan(), (&b.tan()).value);
+        check_ops!(a, b, c: mul, add, sub, div, pow);
+        check_ops!(a, b, c, rev: pow, divide);
+        check_ops!(a, b: neg, abs, square, exp, sin, cos, tan);
+        let a = a.abs();
+        let b = b.abs();
+        let c = c.abs();
+        check_ops!(a, b, c: log);
+        check_ops!(a, b: ln, sqrt);
     }
+
+    macro_rules! assert_impl {
+        ($T:ty: $Trait:path) => {
+            const _: () = {
+                fn f<'a, T: $Trait>() {}
+                fn assert_trait() {
+                    f::<$T>()
+                }
+            };
+        };
+        ($T:ty) => {
+            assert_impl!(Vector<$T>: NumOps<$T, Vector<$T>>);
+            assert_impl!(&Vector<$T>: NumOps<$T, Vector<$T>>);
+            assert_impl!(Vector<$T>: NumOps<&'a $T, Vector<$T>>);
+            assert_impl!(&Vector<$T>: NumOps<&'a $T, Vector<$T>>);
+            assert_impl!(Vector<$T>: NumOps<Vector<$T>, Vector<$T>>);
+            assert_impl!(&Vector<$T>: NumOps<Vector<$T>, Vector<$T>>);
+            assert_impl!(Vector<$T>: NumOps<&'a Vector<$T>, Vector<$T>>);
+            assert_impl!(&Vector<$T>: NumOps<&'a Vector<$T>, Vector<$T>>);
+
+            assert_impl!(FAD<Vector<$T>>: NumOps<Vector<$T>, FAD<Vector<$T>>>);
+            assert_impl!(&FAD<Vector<$T>>: NumOps<Vector<$T>, FAD<Vector<$T>>>);
+            assert_impl!(FAD<Vector<$T>>: NumOps<&'a Vector<$T>, FAD<Vector<$T>>>);
+            assert_impl!(&FAD<Vector<$T>>: NumOps<&'a Vector<$T>, FAD<Vector<$T>>>);
+
+            assert_impl!(Vector<$T>: NumConsts);
+            assert_impl!(FAD<Vector<$T>>: NumConsts);
+
+            assert_impl!(Vector<$T>: NumOpts<Vector<$T>>);
+            assert_impl!(&Vector<$T>: NumOpts<Vector<$T>>);
+            assert_impl!(FAD<Vector<$T>>: NumOpts<FAD<Vector<$T>>>);
+            assert_impl!(&FAD<Vector<$T>>: NumOpts<FAD<Vector<$T>>>);
+
+            assert_impl!(Vector<$T>: AggOps<Vector<$T>>);
+            assert_impl!(&Vector<$T>: AggOps<Vector<$T>>);
+            assert_impl!(FAD<Vector<$T>>: AggOps<FAD<Vector<$T>>>);
+            assert_impl!(&FAD<Vector<$T>>: AggOps<FAD<Vector<$T>>>);
+        };
+    }
+
+    assert_impl!(f32);
+    assert_impl!(f64);
 }
