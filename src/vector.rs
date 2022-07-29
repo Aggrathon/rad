@@ -1,10 +1,10 @@
 /// Simple library for vectorised math
 use crate::ops::*;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 /// Wrapper for vector math
 #[derive(PartialEq, Debug, Clone)]
-enum Vector<T> {
+pub enum Vector<T> {
     Vec(Vec<T>),
     Scalar(T),
     // Iter(Box<dyn Iterator<Item = T>>),
@@ -12,10 +12,22 @@ enum Vector<T> {
 
 impl<'a, T> Vector<T> {
     #[allow(unused)]
-    fn first(&'a self) -> Option<&'a T> {
+    #[inline]
+    pub fn first(&'a self) -> Option<&'a T> {
         match self {
             Vector::Vec(v) => v.first(),
             Vector::Scalar(s) => Some(s),
+        }
+    }
+}
+
+impl<T> Vector<T> {
+    #[allow(unused)]
+    #[inline]
+    pub fn len(&self) -> usize {
+        match self {
+            Vector::Vec(v) => v.len(),
+            Vector::Scalar(_) => 1,
         }
     }
 }
@@ -191,6 +203,50 @@ impl_binary_op!(Log, log);
 impl_binary_op!(Pow, pow: rev);
 impl_binary_op!(Log, log: rev);
 impl_binary_op!(Div2, divide: rev);
+
+macro_rules! impl_assign_op {
+    ($Trait:tt, $fn:ident) => {
+        impl<T> $Trait for Vector<T>
+        where
+            T: $Trait + Clone,
+        {
+            fn $fn(&mut self, rhs: Self) {
+                match self {
+                    Vector::Vec(lhs) => match rhs {
+                        Vector::Vec(rhs) => {
+                            assert!(
+                                lhs.len() == rhs.len(),
+                                "The vectors must be of equal length: {} != {}",
+                                lhs.len(),
+                                rhs.len()
+                            );
+                            lhs.iter_mut()
+                                .zip(rhs.into_iter())
+                                .for_each(|(a, b)| a.$fn(b));
+                        }
+                        Vector::Scalar(rhs) => lhs.iter_mut().for_each(|a| a.$fn(rhs.clone())),
+                    },
+                    Vector::Scalar(lhs) => match rhs {
+                        Vector::Vec(mut rhs) => {
+                            rhs.iter_mut().for_each(|b| {
+                                let mut a = lhs.clone();
+                                std::mem::swap(&mut a, b);
+                                b.$fn(a);
+                            });
+                            *self = Vector::from(rhs);
+                        }
+                        Vector::Scalar(rhs) => lhs.$fn(rhs),
+                    },
+                }
+            }
+        }
+    };
+}
+
+impl_assign_op!(AddAssign, add_assign);
+impl_assign_op!(SubAssign, sub_assign);
+impl_assign_op!(MulAssign, mul_assign);
+impl_assign_op!(DivAssign, div_assign);
 
 macro_rules! impl_unary_op {
     ($Trait:tt, $($fn:ident),+) => {
