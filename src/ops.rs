@@ -258,11 +258,28 @@ pub trait Prod {
     fn prod(self) -> Self::Output;
 }
 
-/// This is a copy of std::ops::Div to get around E0210
+/// This is a copy of std::ops::Div to get around E0210.
+/// The idea is that this can be implemented for `custom_object._div(number)` where the normal `Div` is used for `number.div(custom_object)`.
 pub trait Div2<RHS = Self> {
     type Output;
 
-    fn divide(self, rhs: RHS) -> Self::Output;
+    fn _div(self, rhs: RHS) -> Self::Output;
+}
+
+/// This is a copy of Pow to get around E0210
+/// The idea is that this can be implemented for `custom_object._pow(number)` where the normal `Pow` is used for `number.pow(custom_object)`.
+pub trait Pow2<RHS = Self> {
+    type Output;
+
+    fn _pow(self, rhs: RHS) -> Self::Output;
+}
+
+/// This is a copy of Log to get around E0210
+/// The idea is that this can be implemented for `custom_object._log(number)` where the normal `Log` is used for `number.log(custom_object)`.
+pub trait Log2<RHS = Self> {
+    type Output;
+
+    fn _log(self, rhs: RHS) -> Self::Output;
 }
 
 // ################## Implementations ##################
@@ -435,16 +452,24 @@ impl_agg!(&'a Vec<T>, Sum, sum, Add, add, Zero, zero);
 impl_agg!(Vec<T>, Prod, prod, Mul, mul, One, one);
 impl_agg!(&'a Vec<T>, Prod, prod, Mul, mul, One, one);
 
-impl<T, O> Div2<T> for T
-where
-    T: Div<T, Output = O>,
-{
-    type Output = O;
+macro_rules! impl_rev {
+    ($Trait:tt, $Trait2:tt, $fn:ident, $fn2:ident) => {
+        impl<T, O> $Trait2<T> for T
+        where
+            T: $Trait<T, Output = O>,
+        {
+            type Output = O;
 
-    fn divide(self, rhs: T) -> Self::Output {
-        self.div(rhs)
-    }
+            fn $fn2(self, rhs: T) -> Self::Output {
+                self.$fn(rhs)
+            }
+        }
+    };
 }
+
+impl_rev!(Div, Div2, div, _div);
+impl_rev!(Pow, Pow2, pow, _pow);
+impl_rev!(Log, Log2, log, _log);
 
 #[cfg(test)]
 mod tests {

@@ -50,107 +50,55 @@ impl<T> From<(T, T)> for FAD<T> {
     }
 }
 
-impl<T, O> NumOps<T, FAD<O>> for FAD<T>
+impl<T1, T2> NumOps<T2, FAD<T1>> for FAD<T1>
 where
-    T: NumOps<T, O>
-        + Mul<O, Output = O>
-        + Div<O, Output = O>
-        + Sub<T, Output = O>
-        + Pow<O, Output = O>
-        + Signum<Output = O>
+    T1: NumOps<T2, T1>
+        + Signum<Output = T1>
+        + Mul<T1, Output = T1>
         + One
-        + Into<O>
+        + Pow<T1, Output = T1>
+        + Div<T1, Output = T1>
         + Clone,
-    O: Sub<O, Output = O> + Mul<O, Output = O> + Clone,
+    T2: Sub<T1, Output = T1> + Clone,
 {
 }
 
-impl<'a, T, O> NumOps<T, FAD<O>> for &'a FAD<T>
+impl<'a, T1, T2> NumOps<T2, FAD<T1>> for &'a FAD<T1>
 where
-    T: Mul<O, Output = O> + Sub<T, Output = O> + One + Clone,
-    &'a T: NumOps<T, O>
-        + Mul<O, Output = O>
-        + Div<O, Output = O>
-        + Div<&'a T, Output = O>
-        + Pow<O, Output = O>
-        + Signum<Output = O>
-        + Into<O>,
-    O: Sub<O, Output = O> + Mul<O, Output = O> + Clone,
+    T1: One + Clone + Mul<T2, Output = T1> + Mul<T1, Output = T1>,
+    &'a T1: NumOps<T2, T1>
+        + Signum<Output = T1>
+        + Mul<T1, Output = T1>
+        + Pow<T1, Output = T1>
+        + Div<T1, Output = T1>
+        + Div<&'a T1, Output = T1>,
+    T2: Sub<T1, Output = T1> + Clone,
 {
 }
 
-impl<'a, T, O> NumOps<&'a T, FAD<O>> for FAD<T>
-where
-    T: NumOps<&'a T, O>
-        + Mul<T, Output = O>
-        + Mul<O, Output = O>
-        + Div<T, Output = O>
-        + Div<O, Output = O>
-        + Pow<T, Output = O>
-        + Pow<O, Output = O>
-        + Signum<Output = O>
-        + One
-        + Into<O>
-        + Clone,
-    &'a T: Mul<O, Output = O> + Sub<T, Output = O> + Into<O>,
-    O: Mul<O, Output = O> + Clone,
+impl<T> NumOpts<FAD<T>> for FAD<T> where
+    T: NumOpts<T> + Neg<Output = T> + Mul<T, Output = T> + Div<T, Output = T> + Clone + Half + Two
 {
 }
 
-impl<'a, T, O> NumOps<&'a T, FAD<O>> for &'a FAD<T>
+impl<'a, T> NumOpts<FAD<T>> for &'a FAD<T>
 where
-    T: One,
-    &'a T: NumOps<&'a T, O>
-        + Mul<O, Output = O>
-        + Sub<T, Output = O>
-        + Div<O, Output = O>
-        + Pow<O, Output = O>
-        + Signum<Output = O>
-        + Into<O>,
-    O: Mul<O, Output = O> + Clone,
-{
-}
-
-impl<T, O> NumOpts<FAD<O>> for FAD<T>
-where
-    T: NumOpts<O>
-        + Half
-        + Mul<O, Output = O>
-        + Sqrt<Output = O>
-        + Two
-        + Clone
-        + Div<O, Output = O>
-        + Mul<T, Output = O>,
-    O: Neg<Output = O> + Square<Output = O> + Div<O, Output = O> + Clone,
-{
-}
-
-impl<'a, T, O> NumOpts<FAD<O>> for &'a FAD<T>
-where
-    T: Half + Two + Mul<T, Output = O> + Mul<O, Output = O>,
-    &'a T: NumOpts<O>
-        + Mul<O, Output = O>
-        + Mul<T, Output = O>
-        + Sqrt<Output = O>
-        + Div<O, Output = O>
-        + Mul<&'a T, Output = O>,
-    O: Neg<Output = O> + Square<Output = O> + Div<O, Output = O> + Clone,
+    T: Square<Output = T> + Neg<Output = T> + Div<T, Output = T> + Clone + Half + Two,
+    &'a T: NumOpts<T> + Mul<T, Output = T> + Div<T, Output = T>,
 {
 }
 
 impl<T> NumConsts for FAD<T> where T: NumConsts {}
 
-impl<T, O> AggOps<FAD<O>> for FAD<T>
-where
-    T: AggOps<O> + Mul<O, Output = O> + Clone + Into<O>,
-    O: Div<T, Output = O> + Clone,
+impl<T> AggOps<FAD<T>> for FAD<T> where
+    T: AggOps<T> + Mul<T, Output = T> + Clone + Div<T, Output = T> + Clone
 {
 }
 
-impl<'a, T, O> AggOps<FAD<O>> for &'a FAD<T>
+impl<'a, T> AggOps<FAD<T>> for &'a FAD<T>
 where
-    &'a T: AggOps<O> + Mul<O, Output = O> + Into<O>,
-    O: Div<&'a T, Output = O> + Clone,
+    &'a T: AggOps<T> + Mul<T, Output = T>,
+    T: Div<&'a T, Output = T> + Clone,
 {
 }
 
@@ -173,134 +121,77 @@ impl_const_op!(crate::ops::Zero, zero);
 impl_const_op!(crate::ops::Half, half);
 impl_const_op!(crate::ops::Two, two);
 
-impl<T, O> Add<T> for FAD<T>
+impl<T1, T2> Add<T2> for FAD<T1>
 where
-    T: Add<T, Output = O> + Into<O>,
+    T1: Add<T2, Output = T1>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn add(self, rhs: T) -> Self::Output {
+    fn add(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.add(rhs),
-            grad: self.grad.into(),
+            grad: self.grad,
         }
     }
 }
 
-impl<'a, T, O> Add<T> for &'a FAD<T>
+impl<'a, T1, T2> Add<T2> for &'a FAD<T1>
 where
-    &'a T: Add<T, Output = O> + Into<O>,
+    T1: Clone,
+    &'a T1: Add<T2, Output = T1>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn add(self, rhs: T) -> Self::Output {
+    fn add(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.add(rhs),
-            grad: (&self.grad).into(),
+            grad: self.grad.clone(),
         }
     }
 }
 
-impl<'a, T, O> Add<&'a T> for FAD<T>
+impl<T1, T2> Sub<T2> for FAD<T1>
 where
-    T: Add<&'a T, Output = O> + Into<O>,
+    T1: Sub<T2, Output = T1>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn add(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.add(rhs),
-            grad: self.grad.into(),
-        }
-    }
-}
-
-impl<'a, T, O> Add<&'a T> for &'a FAD<T>
-where
-    &'a T: Add<&'a T, Output = O> + Into<O>,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn add(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.add(rhs),
-            grad: (&self.grad).into(),
-        }
-    }
-}
-
-impl<T, O> Sub<T> for FAD<T>
-where
-    T: Sub<T, Output = O> + Into<O>,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn sub(self, rhs: T) -> Self::Output {
+    fn sub(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.sub(rhs),
-            grad: self.grad.into(),
+            grad: self.grad,
         }
     }
 }
 
-impl<'a, T, O> Sub<T> for &'a FAD<T>
+impl<'a, T1, T2> Sub<T2> for &'a FAD<T1>
 where
-    &'a T: Sub<T, Output = O> + Into<O>,
+    T1: Clone,
+    &'a T1: Sub<T2, Output = T1>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn sub(self, rhs: T) -> Self::Output {
+    fn sub(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.sub(rhs),
-            grad: (&self.grad).into(),
+            grad: self.grad.clone(),
         }
     }
 }
 
-impl<'a, T, O> Sub<&'a T> for FAD<T>
+impl<T1, T2> Mul<T2> for FAD<T1>
 where
-    T: Sub<&'a T, Output = O> + Into<O>,
+    T1: Mul<T2, Output = T1>,
+    T2: Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn sub(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.sub(rhs),
-            grad: self.grad.into(),
-        }
-    }
-}
-
-impl<'a, T, O> Sub<&'a T> for &'a FAD<T>
-where
-    &'a T: Sub<&'a T, Output = O> + Into<O>,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn sub(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.sub(rhs),
-            grad: (&self.grad).into(),
-        }
-    }
-}
-
-impl<T, O> Mul<T> for FAD<T>
-where
-    T: Mul<T, Output = O> + Clone,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn mul(self, rhs: T) -> Self::Output {
+    fn mul(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.mul(rhs.clone()),
             grad: self.grad.mul(rhs),
@@ -308,15 +199,15 @@ where
     }
 }
 
-impl<'a, T, O> Mul<T> for &'a FAD<T>
+impl<'a, T1, T2> Mul<T2> for &'a FAD<T1>
 where
-    &'a T: Mul<T, Output = O>,
-    T: Clone,
+    &'a T1: Mul<T2, Output = T1>,
+    T2: Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn mul(self, rhs: T) -> Self::Output {
+    fn mul(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.mul(rhs.clone()),
             grad: self.grad.mul(rhs),
@@ -324,41 +215,11 @@ where
     }
 }
 
-impl<'a, T, O> Mul<&'a T> for FAD<T>
+impl<T> Neg for FAD<T>
 where
-    T: Mul<&'a T, Output = O>,
+    T: Neg<Output = T>,
 {
-    type Output = FAD<O>;
-
-    #[inline]
-    fn mul(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.mul(rhs),
-            grad: self.grad.mul(rhs),
-        }
-    }
-}
-
-impl<'a, T, O> Mul<&'a T> for &'a FAD<T>
-where
-    &'a T: Mul<&'a T, Output = O>,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn mul(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.mul(rhs),
-            grad: self.grad.mul(rhs),
-        }
-    }
-}
-
-impl<T, O> Neg for FAD<T>
-where
-    T: Neg<Output = O>,
-{
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn neg(self) -> Self::Output {
@@ -369,11 +230,11 @@ where
     }
 }
 
-impl<'a, T, O> Neg for &'a FAD<T>
+impl<'a, T> Neg for &'a FAD<T>
 where
-    &'a T: Neg<Output = O>,
+    &'a T: Neg<Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn neg(self) -> Self::Output {
@@ -384,11 +245,11 @@ where
     }
 }
 
-impl<T, O> Abs for FAD<T>
+impl<T> Abs for FAD<T>
 where
-    T: Abs<Output = O> + Signum<Output = O> + Mul<O, Output = O> + Clone,
+    T: Abs<Output = T> + Signum<Output = T> + Mul<T, Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn abs(self) -> Self::Output {
@@ -399,11 +260,11 @@ where
     }
 }
 
-impl<'a, T, O> Abs for &'a FAD<T>
+impl<'a, T> Abs for &'a FAD<T>
 where
-    &'a T: Abs<Output = O> + Signum<Output = O> + Mul<O, Output = O>,
+    &'a T: Abs<Output = T> + Signum<Output = T> + Mul<T, Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn abs(self) -> Self::Output {
@@ -414,14 +275,15 @@ where
     }
 }
 
-impl<T, O> Div<T> for FAD<T>
+impl<T1, T2> Div<T2> for FAD<T1>
 where
-    T: Div<T, Output = O> + Clone,
+    T1: Div<T2, Output = T1>,
+    T2: Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn div(self, rhs: T) -> Self::Output {
+    fn div(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.div(rhs.clone()),
             grad: self.grad.div(rhs),
@@ -429,15 +291,15 @@ where
     }
 }
 
-impl<'a, T, O> Div<T> for &'a FAD<T>
+impl<'a, T1, T2> Div<T2> for &'a FAD<T1>
 where
-    &'a T: Div<T, Output = O>,
-    T: Clone,
+    &'a T1: Div<T2, Output = T1>,
+    T2: Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn div(self, rhs: T) -> Self::Output {
+    fn div(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.div(rhs.clone()),
             grad: self.grad.div(rhs),
@@ -445,45 +307,14 @@ where
     }
 }
 
-impl<'a, T, O> Div<&'a T> for FAD<T>
+impl<T> Div2<FAD<T>> for T
 where
-    T: Div<&'a T, Output = O>,
+    T: Div<T, Output = T> + Neg<Output = T> + Square<Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
-    fn div(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.div(rhs),
-            grad: self.grad.div(rhs),
-        }
-    }
-}
-
-impl<'a, T, O> Div<&'a T> for &'a FAD<T>
-where
-    &'a T: Div<&'a T, Output = O>,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn div(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.divide(rhs),
-            grad: self.grad.divide(rhs),
-        }
-    }
-}
-
-impl<T, O> Div2<FAD<T>> for T
-where
-    T: Div<T, Output = O> + Square<Output = O> + Div<O, Output = O> + Clone,
-    O: Neg<Output = O>,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn divide(self, rhs: FAD<T>) -> Self::Output {
+    fn _div(self, rhs: FAD<T>) -> Self::Output {
         FAD {
             value: self.div(rhs.value.clone()),
             grad: rhs.grad.div(rhs.value.square()).neg(),
@@ -491,16 +322,15 @@ where
     }
 }
 
-impl<'a, T, O> Div2<FAD<T>> for &'a T
+impl<'a, T> Div2<FAD<T>> for &'a T
 where
-    &'a T: Div<T, Output = O>,
-    T: Square<Output = O> + Div<O, Output = O> + Clone,
-    O: Neg<Output = O>,
+    T: Clone + Neg<Output = T> + Square<Output = T> + Div<T, Output = T>,
+    &'a T: Div<T, Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
-    fn divide(self, rhs: FAD<T>) -> Self::Output {
+    fn _div(self, rhs: FAD<T>) -> Self::Output {
         FAD {
             value: self.div(rhs.value.clone()),
             grad: rhs.grad.div(rhs.value.square()).neg(),
@@ -508,118 +338,81 @@ where
     }
 }
 
-impl<'a, T, O> Div2<&'a FAD<T>> for T
+impl<'a, T> Div2<&'a FAD<T>> for T
 where
-    T: Div<&'a T, Output = O>,
-    &'a T: Square<Output = O> + Div<O, Output = O>,
-    O: Neg<Output = O>,
+    T: Div<&'a T, Output = T> + Neg<Output = T>,
+    &'a T: Div<T, Output = T> + Square<Output = T> + Div<T, Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
-    fn divide(self, rhs: &'a FAD<T>) -> Self::Output {
+    fn _div(self, rhs: &'a FAD<T>) -> Self::Output {
         FAD {
             value: self.div(&rhs.value),
-            grad: (&rhs.grad).div(rhs.value.square()).neg(),
+            grad: (&rhs.grad).div((&rhs.value).square()).neg(),
         }
     }
 }
 
-impl<'a, T, O> Div2<&'a FAD<T>> for &'a T
+impl<'a, T> Div2<&'a FAD<T>> for &'a T
 where
-    &'a T: Div<&'a T, Output = O> + Square<Output = O> + Div<O, Output = O>,
-    O: Neg<Output = O>,
+    T: Clone + Neg<Output = T>,
+    &'a T: Div<&'a T, Output = T> + Square<Output = T> + Div<T, Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
-    fn divide(self, rhs: &'a FAD<T>) -> Self::Output {
+    fn _div(self, rhs: &'a FAD<T>) -> Self::Output {
         FAD {
             value: self.div(&rhs.value),
-            grad: (&rhs.grad).div(rhs.value.square()).neg(),
+            grad: rhs.grad.div(rhs.value.square()).neg(),
         }
     }
 }
 
-impl<T, O> Pow<T> for FAD<T>
+impl<T1, T2> Pow<T2> for FAD<T1>
 where
-    T: Pow<T, Output = O>
-        + Pow<O, Output = O>
-        + Mul<T, Output = O>
-        + Sub<T, Output = O>
+    T1: Pow<T2, Output = T1>
+        + Mul<T2, Output = T1>
+        + Mul<T1, Output = T1>
+        + Pow<T1, Output = T1>
         + One
         + Clone,
-    O: Mul<O, Output = O>,
+    T2: Clone + Sub<T1, Output = T1>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn pow(self, rhs: T) -> Self::Output {
+    fn pow(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.clone().pow(rhs.clone()),
-            grad: (self.grad * rhs.clone()) * self.value.pow(rhs - T::one()),
+            grad: (self.grad * rhs.clone()) * self.value.pow(rhs - T1::one()),
         }
     }
 }
 
-impl<'a, T, O> Pow<T> for &'a FAD<T>
+impl<'a, T1, T2> Pow<T2> for &'a FAD<T1>
 where
-    &'a T: Pow<T, Output = O> + Pow<O, Output = O> + Mul<T, Output = O>,
-    T: Sub<T, Output = O> + One + Clone,
-    O: Mul<O, Output = O>,
+    &'a T1: Pow<T2, Output = T1> + Pow<T1, Output = T1> + Mul<T2, Output = T1>,
+    T1: One + Mul<T1, Output = T1>,
+    T2: Clone + Sub<T1, Output = T1>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn pow(self, rhs: T) -> Self::Output {
+    fn pow(self, rhs: T2) -> Self::Output {
         FAD {
             value: (&self.value).pow(rhs.clone()),
-            grad: (&self.grad * rhs.clone()) * (&self.value).pow(rhs - T::one()),
+            grad: (&self.grad * rhs.clone()) * (&self.value).pow(rhs - T1::one()),
         }
     }
 }
 
-impl<'a, T, O> Pow<&'a T> for FAD<T>
+impl<T> Exp for FAD<T>
 where
-    T: Pow<&'a T, Output = O> + Pow<O, Output = O> + Mul<&'a T, Output = O> + One + Clone,
-    &'a T: Sub<T, Output = O>,
-    O: Mul<O, Output = O>,
+    T: Mul<T, Output = T> + Mul<T, Output = T> + Exp<Output = T> + Clone,
 {
-    type Output = FAD<O>;
-
-    #[inline]
-    fn pow(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.clone().pow(rhs),
-            grad: (self.grad * rhs) * self.value.pow(rhs - T::one()),
-        }
-    }
-}
-
-impl<'a, T, O> Pow<&'a T> for &'a FAD<T>
-where
-    &'a T:
-        Pow<&'a T, Output = O> + Pow<O, Output = O> + Mul<&'a T, Output = O> + Sub<T, Output = O>,
-    T: One,
-    O: Mul<O, Output = O>,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn pow(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: (&self.value).pow(rhs),
-            grad: (&self.grad * rhs) * (&self.value).pow(rhs - T::one()),
-        }
-    }
-}
-
-impl<T, O> Exp for FAD<T>
-where
-    T: Mul<T, Output = O> + Mul<O, Output = O> + Exp<Output = O>,
-    O: Clone,
-{
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn exp(self) -> Self::Output {
@@ -629,12 +422,12 @@ where
     }
 }
 
-impl<'a, T, O> Exp for &'a FAD<T>
+impl<'a, T> Exp for &'a FAD<T>
 where
-    &'a T: Mul<O, Output = O> + Exp<Output = O>,
-    O: Clone,
+    &'a T: Mul<T, Output = T> + Exp<Output = T>,
+    T: Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn exp(self) -> Self::Output {
@@ -644,73 +437,72 @@ where
     }
 }
 
-impl<T, O> Pow<FAD<T>> for T
+impl<T> Pow2<FAD<T>> for T
 where
-    T: Mul<O, Output = O> + Ln<Output = O> + Pow<T, Output = O> + Clone,
-    O: Mul<Output = O> + Clone,
+    T: Mul<T, Output = T> + Ln<Output = T> + Pow<T, Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
-    fn pow(self, lhs: FAD<T>) -> Self::Output {
+    fn _pow(self, lhs: FAD<T>) -> Self::Output {
         let value = self.clone().pow(lhs.value);
         let grad = lhs.grad * (self.ln() * value.clone());
         FAD { value, grad }
     }
 }
 
-impl<'a, T, O> Pow<&'a FAD<T>> for T
+impl<'a, T> Pow2<&'a FAD<T>> for T
 where
-    &'a T: Mul<O, Output = O>,
-    T: Ln<Output = O> + Pow<&'a T, Output = O> + Clone,
-    O: Mul<Output = O> + Clone,
+    &'a T: Mul<T, Output = T>,
+    T: Ln<Output = T> + Pow<&'a T, Output = T> + Clone,
+    T: Mul<Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
-    fn pow(self, lhs: &'a FAD<T>) -> Self::Output {
+    fn _pow(self, lhs: &'a FAD<T>) -> Self::Output {
         let value = self.clone().pow(&lhs.value);
         let grad = &lhs.grad * (self.ln() * value.clone());
         FAD { value, grad }
     }
 }
 
-impl<'a, T, O> Pow<FAD<T>> for &'a T
+impl<'a, T> Pow2<FAD<T>> for &'a T
 where
-    &'a T: Pow<T, Output = O> + Ln<Output = O>,
-    T: Mul<O, Output = O>,
-    O: Mul<Output = O> + Clone,
+    &'a T: Pow<T, Output = T> + Ln<Output = T>,
+    T: Mul<T, Output = T>,
+    T: Mul<Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
-    fn pow(self, lhs: FAD<T>) -> Self::Output {
+    fn _pow(self, lhs: FAD<T>) -> Self::Output {
         let value = self.pow(lhs.value);
         let grad = lhs.grad * (self.ln() * value.clone());
         FAD { value, grad }
     }
 }
 
-impl<'a, T, O> Pow<&'a FAD<T>> for &'a T
+impl<'a, T> Pow2<&'a FAD<T>> for &'a T
 where
-    &'a T: Pow<&'a T, Output = O> + Ln<Output = O> + Mul<O, Output = O>,
-    O: Mul<Output = O> + Clone,
+    &'a T: Pow<&'a T, Output = T> + Ln<Output = T> + Mul<T, Output = T>,
+    T: Mul<Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
-    fn pow(self, lhs: &'a FAD<T>) -> Self::Output {
+    fn _pow(self, lhs: &'a FAD<T>) -> Self::Output {
         let value = self.pow(&lhs.value);
         let grad = &lhs.grad * (self.ln() * value.clone());
         FAD { value, grad }
     }
 }
 
-impl<T, O> Ln for FAD<T>
+impl<T> Ln for FAD<T>
 where
-    T: Div<Output = O> + Ln<Output = O> + Clone,
+    T: Div<Output = T> + Ln<Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn ln(self) -> Self::Output {
@@ -721,11 +513,11 @@ where
     }
 }
 
-impl<'a, T, O> Ln for &'a FAD<T>
+impl<'a, T> Ln for &'a FAD<T>
 where
-    &'a T: Div<&'a T, Output = O> + Ln<Output = O>,
+    &'a T: Div<&'a T, Output = T> + Ln<Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn ln(self) -> Self::Output {
@@ -736,73 +528,48 @@ where
     }
 }
 
-impl<T, O> Log<T> for FAD<T>
+impl<T1, T2> Log<T2> for FAD<T1>
 where
-    T: Div<O, Output = O> + Log<T, Output = O> + Ln<Output = O> + Mul<O, Output = O> + Clone,
+    T1: Div<T1, Output = T1>
+        + Log<T2, Output = T1>
+        + Ln<Output = T1>
+        + Mul<T2, Output = T1>
+        + Clone,
+    T2: Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn log(self, rhs: T) -> Self::Output {
+    fn log(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.clone().log(rhs.clone()),
-            grad: self.grad / (rhs * self.value.ln()),
+            grad: self.grad / (self.value.ln() * rhs),
         }
     }
 }
 
-impl<'a, T, O> Log<T> for &'a FAD<T>
+impl<'a, T1, T2> Log<T2> for &'a FAD<T1>
 where
-    &'a T: Div<O, Output = O> + Log<T, Output = O> + Ln<Output = O>,
-    T: Mul<O, Output = O> + Clone,
+    &'a T1: Div<T1, Output = T1> + Log<T2, Output = T1> + Ln<Output = T1>,
+    T1: Mul<T2, Output = T1>,
+    T2: Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T1>;
 
     #[inline]
-    fn log(self, rhs: T) -> Self::Output {
+    fn log(self, rhs: T2) -> Self::Output {
         FAD {
             value: self.value.log(rhs.clone()),
-            grad: &self.grad / (rhs * self.value.ln()),
+            grad: &self.grad / (self.value.ln() * rhs),
         }
     }
 }
 
-impl<'a, T, O> Log<&'a T> for FAD<T>
+impl<T> Square for FAD<T>
 where
-    T: Div<O, Output = O> + Log<&'a T, Output = O> + Ln<Output = O> + Clone,
-    &'a T: Mul<O, Output = O>,
+    T: Square<Output = T> + Two + Mul<T, Output = T> + Clone + Mul<T, Output = T>,
 {
-    type Output = FAD<O>;
-
-    #[inline]
-    fn log(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.clone().log(rhs),
-            grad: self.grad / (rhs * self.value.ln()),
-        }
-    }
-}
-
-impl<'a, T, O> Log<&'a T> for &'a FAD<T>
-where
-    &'a T: Div<O, Output = O> + Log<&'a T, Output = O> + Ln<Output = O> + Mul<O, Output = O>,
-{
-    type Output = FAD<O>;
-
-    #[inline]
-    fn log(self, rhs: &'a T) -> Self::Output {
-        FAD {
-            value: self.value.log(rhs),
-            grad: &self.grad / (rhs * self.value.ln()),
-        }
-    }
-}
-
-impl<T, O> Square for FAD<T>
-where
-    T: Square<Output = O> + Two + Mul<T, Output = O> + Clone + Mul<O, Output = O>,
-{
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn square(self) -> Self::Output {
@@ -813,28 +580,27 @@ where
     }
 }
 
-impl<'a, T, O> Square for &'a FAD<T>
+impl<'a, T> Square for &'a FAD<T>
 where
-    &'a T: Square<Output = O> + Mul<&'a T, Output = O>,
-    T: Two + Mul<O, Output = O>,
+    T: Two,
+    &'a T: Square<Output = T> + Mul<T, Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn square(self) -> Self::Output {
         FAD {
             value: self.value.square(),
-            grad: T::two() * (&self.grad * &self.value),
+            grad: &self.grad * (&self.value * T::two()),
         }
     }
 }
 
-impl<T, O> Sqrt for FAD<T>
+impl<T> Sqrt for FAD<T>
 where
-    T: Sqrt<Output = O> + Half + Mul<T, Output = O>,
-    O: Div<O, Output = O> + Clone,
+    T: Sqrt<Output = T> + Half + Mul<T, Output = T> + Div<T, Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn sqrt(self) -> Self::Output {
@@ -846,13 +612,12 @@ where
     }
 }
 
-impl<'a, T, O> Sqrt for &'a FAD<T>
+impl<'a, T> Sqrt for &'a FAD<T>
 where
-    T: Half,
-    &'a T: Sqrt<Output = O> + Mul<T, Output = O>,
-    O: Div<O, Output = O> + Clone,
+    T: Half + Div<T, Output = T> + Clone,
+    &'a T: Sqrt<Output = T> + Mul<T, Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn sqrt(self) -> Self::Output {
@@ -864,12 +629,16 @@ where
     }
 }
 
-impl<T, O> Trig for FAD<T>
+impl<T> Trig for FAD<T>
 where
-    T: Mul<O, Output = O> + Div<O, Output = O> + Trig<Output = O> + Clone,
-    O: Square<Output = O> + Neg<Output = O>,
+    T: Mul<T, Output = T>
+        + Div<T, Output = T>
+        + Trig<Output = T>
+        + Clone
+        + Square<Output = T>
+        + Neg<Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn sin(self) -> Self::Output {
@@ -896,12 +665,12 @@ where
     }
 }
 
-impl<'a, T, O> Trig for &'a FAD<T>
+impl<'a, T> Trig for &'a FAD<T>
 where
-    &'a T: Mul<O, Output = O> + Div<O, Output = O> + Trig<Output = O>,
-    O: Square<Output = O> + Neg<Output = O>,
+    &'a T: Mul<T, Output = T> + Div<T, Output = T> + Trig<Output = T>,
+    T: Square<Output = T> + Neg<Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     #[inline]
     fn sin(self) -> Self::Output {
@@ -938,40 +707,41 @@ impl<T, E> From<FAD<Result<T, E>>> for Result<FAD<T>, E> {
     }
 }
 
-impl<T, O> Sum for FAD<T>
+impl<T> Sum for FAD<T>
 where
-    T: Sum<Output = O> + Into<O>,
+    T: Sum<Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     fn sum(self) -> Self::Output {
         FAD {
             value: self.value.sum(),
-            grad: self.grad.into(),
+            grad: self.grad,
         }
     }
 }
 
-impl<'a, T, O> Sum for &'a FAD<T>
+impl<'a, T> Sum for &'a FAD<T>
 where
-    &'a T: Sum<Output = O> + Into<O>,
+    T: Clone,
+    &'a T: Sum<Output = T>,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     fn sum(self) -> Self::Output {
         FAD {
             value: self.value.sum(),
-            grad: (&self.grad).into(),
+            grad: self.grad.clone(),
         }
     }
 }
 
-impl<T, O> Prod for FAD<T>
+impl<T> Prod for FAD<T>
 where
-    T: Prod<Output = O> + Mul<O, Output = O> + Clone,
-    O: Div<T, Output = O> + Clone,
+    T: Prod<Output = T> + Mul<T, Output = T> + Clone,
+    T: Div<T, Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     fn prod(self) -> Self::Output {
         let value = self.value.clone().prod();
@@ -982,12 +752,12 @@ where
     }
 }
 
-impl<'a, T, O> Prod for &'a FAD<T>
+impl<'a, T> Prod for &'a FAD<T>
 where
-    &'a T: Prod<Output = O> + Mul<O, Output = O>,
-    O: Div<&'a T, Output = O> + Clone,
+    &'a T: Prod<Output = T> + Mul<T, Output = T>,
+    T: Div<&'a T, Output = T> + Clone,
 {
-    type Output = FAD<O>;
+    type Output = FAD<T>;
 
     fn prod(self) -> Self::Output {
         let value = self.value.prod();
@@ -1012,19 +782,20 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::op_ref)]
     fn scalar() {
         for a in [2.0f32, 3., 4.] {
             let b = FAD::from(a);
             for c in [2.0f32, 5., 7.] {
-                assert_fad_eq!(b.clone() + c, (a + c, 1.));
-                assert_fad_eq!(b.clone() * c, (a * c, c));
-                assert_fad_eq!(b.clone() * 2. + c, (a * 2. + c, 2.));
-                assert_fad_eq!((b.clone() - c) * -2., ((a - c) * -2., -2.));
-                assert_fad_eq!(-b.clone(), (-a, -1.));
-                assert_fad_eq!(b.clone() / c, (a / c, 1. / c));
-                assert_fad_eq!(c.divide(b.clone()), (c / a, -1.0 / a / a));
-                assert_fad_eq!(b.clone().pow(c), (a.powf(c), c * a.powf(c - 1.)));
-                assert_fad_eq!(c.pow(b.clone()), (c.powf(a), c.ln() * c.powf(a)));
+                assert_fad_eq!(b + c, (a + c, 1.));
+                assert_fad_eq!(b * c, (a * c, c));
+                assert_fad_eq!(b * 2. + c, (a * 2. + c, 2.));
+                assert_fad_eq!((b - c) * -2., ((a - c) * -2., -2.));
+                assert_fad_eq!(-b, (-a, -1.));
+                assert_fad_eq!(b / c, (a / c, 1. / c));
+                assert_fad_eq!(c._div(b), (c / a, -1.0 / a / a));
+                assert_fad_eq!(b.pow(c), (a.powf(c), c * a.powf(c - 1.)));
+                assert_fad_eq!(c._pow(b), (c.powf(a), c.ln() * c.powf(a)));
                 assert_fad_eq!((&b).log(c), (a.log(c), 1. / c / a.ln()));
                 assert_fad_eq!(b + c, (a + c, 1.));
                 assert_fad_eq!((&b) * c, (a * c, c));
@@ -1032,18 +803,18 @@ mod tests {
                 assert_fad_eq!((b - c) * -2., ((a - c) * -2., -2.));
                 assert_fad_eq!(-(&b), (-a, -1.));
                 assert_fad_eq!((&b) / c, (a / c, 1. / c));
-                assert_fad_eq!(c.divide(&b), (c / a, -1.0 / a / a));
+                assert_fad_eq!(c._div(&b), (c / a, -1.0 / a / a));
                 assert_fad_eq!((&b).pow(c), (a.powf(c), c * a.powf(c - 1.)));
-                assert_fad_eq!(c.pow(&b), (c.powf(a), c.ln() * c.powf(a)));
+                assert_fad_eq!(c._pow(&b), (c.powf(a), c.ln() * c.powf(a)));
                 assert_fad_eq!((&b).log(c), (a.log(c), 1. / c / a.ln()));
             }
-            assert_fad_eq!(b.clone().exp(), (a.exp(), a.exp()));
-            assert_fad_eq!(b.clone().ln(), (a.ln(), 1. / a));
-            assert_fad_eq!(b.clone().sqrt(), (a.sqrt(), 0.5 / a.sqrt()));
-            assert_fad_eq!(b.clone().square(), (a.square(), 2.0 * a));
-            assert_fad_eq!(b.clone().sin(), (a.sin(), a.cos()));
-            assert_fad_eq!(b.clone().cos(), (a.cos(), -a.sin()));
-            assert_fad_eq!(b.clone().tan(), (a.tan(), 1. / a.cos() / a.cos()));
+            assert_fad_eq!(b.exp(), (a.exp(), a.exp()));
+            assert_fad_eq!(b.ln(), (a.ln(), 1. / a));
+            assert_fad_eq!(b.sqrt(), (a.sqrt(), 0.5 / a.sqrt()));
+            assert_fad_eq!(b.square(), (a.square(), 2.0 * a));
+            assert_fad_eq!(b.sin(), (a.sin(), a.cos()));
+            assert_fad_eq!(b.cos(), (a.cos(), -a.sin()));
+            assert_fad_eq!(b.tan(), (a.tan(), 1. / a.cos() / a.cos()));
             assert_fad_eq!((&b).exp(), (a.exp(), a.exp()));
             assert_fad_eq!((&b).ln(), (a.ln(), 1. / a));
             assert_fad_eq!((&b).sqrt(), (a.sqrt(), 0.5 / a.sqrt()));
@@ -1065,9 +836,9 @@ mod tests {
         };
         ($T:ty) => {
             assert_impl!(FAD<$T>: NumOps<$T, FAD<$T>>);
-            // assert_impl!(&FAD<$T>: NumOps<$T, FAD<$T>>);
-            // assert_impl!(FAD<$T>: NumOps<&'a $T, FAD<$T>>);
-            // assert_impl!(&FAD<$T>: NumOps<&'a $T, FAD<$T>>);
+            assert_impl!(&FAD<$T>: NumOps<$T, FAD<$T>>);
+            assert_impl!(FAD<$T>: NumOps<&'a $T, FAD<$T>>);
+            assert_impl!(&FAD<$T>: NumOps<&'a $T, FAD<$T>>);
 
             assert_impl!(FAD<$T>: NumConsts);
 

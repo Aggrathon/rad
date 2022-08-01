@@ -8,8 +8,8 @@ where
     F: Fn(&FAD<T1>) -> FAD<T1>,
     I: Iterator<Item = T2>,
 {
-    pub x: FAD<T1>,
-    loss: F,
+    x: FAD<T1>,
+    loss_fn: F,
     lr: I,
 }
 
@@ -22,8 +22,42 @@ where
     pub fn new(x0: T1, loss: F, lr: I) -> Self {
         Self {
             x: FAD::from(x0),
-            loss,
+            loss_fn: loss,
             lr,
+        }
+    }
+
+    pub fn loss(&mut self) -> T1 {
+        (self.loss_fn)(&self.x).value
+    }
+
+    pub fn value(&mut self) -> &T1 {
+        &self.x.value
+    }
+
+    pub fn gradient(&mut self) -> T1 {
+        (self.loss_fn)(&self.x).grad
+    }
+
+    pub fn step(&mut self) -> Option<T1> {
+        let lr = self.lr.next()?;
+        let res = (self.loss_fn)(&self.x);
+        self.x.value -= res.grad * lr;
+        Some(res.value)
+    }
+}
+
+impl<T1, T2, F> GradientDescent<T1, T2, F, std::iter::Repeat<T2>>
+where
+    T1: Mul<T2, Output = T1> + SubAssign<T1> + One,
+    F: Fn(&FAD<T1>) -> FAD<T1>,
+    T2: Clone,
+{
+    pub fn with_lr(x0: T1, loss_fn: F, lr: T2) -> Self {
+        Self {
+            x: FAD::from(x0),
+            loss_fn,
+            lr: std::iter::repeat(lr),
         }
     }
 }
@@ -37,11 +71,7 @@ where
     type Item = T1;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let lr = self.lr.next()?;
-        let res = (self.loss)(&self.x);
-        let delta = res.grad * lr;
-        self.x.value -= delta;
-        Some(res.value)
+        self.step()
     }
 }
 
@@ -57,26 +87,18 @@ mod tests {
         let data = Vector::from(data);
         let mean = (&data).sum().first().unwrap() / data.len() as f32;
         let loss = |x: &FAD<Vector<f32>>| {
-            let mut loss = (x - &data).square().sum();
-            loss.grad = loss.grad.sum();
+            let mut loss = (x - &data).square();
+            loss.grad = loss.grad.sum(); // all forward passes in one go
             loss
         };
-        let mut gd = GradientDescent::new(
-            Vector::Scalar(0f32),
-            loss,
-            std::iter::repeat(Vector::Scalar(0.1f32)),
-        );
+        let learning_rate = 0.1f32;
+        let mut gd = GradientDescent::with_lr(Vector::Scalar(0f32), loss, learning_rate);
         for _ in 0..100 {
-            gd.next();
+            gd.step();
         }
-        let gd_mean = *gd.x.value.first().unwrap();
-        assert_eq!(mean, gd_mean);
-        // println!(
-        //     "{} : {} | {} : {}",
-        //     mean,
-        //     (&data - mean).square().sum().first().unwrap(),
-        //     gd_mean,
-        //     (&data - gd_mean).square().sum().first().unwrap()
-        // );
+        match gd.value() {
+            Vector::Scalar(gd_mean) => assert_eq!(mean, *gd_mean),
+            _ => panic!(),
+        };
     }
 }

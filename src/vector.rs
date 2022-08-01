@@ -209,9 +209,9 @@ impl_binary_op!(Mul, mul);
 impl_binary_op!(Div, div);
 impl_binary_op!(Pow, pow);
 impl_binary_op!(Log, log);
-impl_binary_op!(Pow, pow: rev);
-impl_binary_op!(Log, log: rev);
-impl_binary_op!(Div2, divide: rev);
+impl_binary_op!(Log2, _log: rev);
+impl_binary_op!(Pow2, _pow: rev);
+impl_binary_op!(Div2, _div: rev);
 
 macro_rules! impl_assign_op {
     ($Trait:tt, $fn:ident) => {
@@ -432,12 +432,13 @@ mod tests {
     fn _scalar(a: Vector<f32>, c: Vector<f32>) {
         let b = FAD::from(a.clone());
         check_ops!(a, b, c: mul, add, sub, div, pow);
-        check_ops!(a, b, c, rev: pow, divide);
+        check_ops!(a, b, c, rev: _pow, _div);
         check_ops!(a, b: neg, abs, square, exp, sin, cos, tan);
         let a = a.abs();
         let b = b.abs();
         let c = c.abs();
         check_ops!(a, b, c: log);
+        check_ops!(a, b, c, rev: _log);
         check_ops!(a, b: ln, sqrt);
     }
 
