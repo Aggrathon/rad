@@ -30,6 +30,15 @@ impl<T> Vector<T> {
             Vector::Scalar(_) => 1,
         }
     }
+
+    #[allow(unused)]
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Vector::Vec(v) => v.is_empty(),
+            Vector::Scalar(_) => false,
+        }
+    }
 }
 
 impl<T> NumOps<T, Vector<T>> for Vector<T> where T: NumOps<T, T> + Copy {}
@@ -216,7 +225,7 @@ macro_rules! impl_assign_op {
                         Vector::Vec(rhs) => {
                             assert!(
                                 lhs.len() == rhs.len(),
-                                "The vectors must be of equal length: {} != {}",
+                                "The other vector must be of equal length: {} != {}",
                                 lhs.len(),
                                 rhs.len()
                             );
@@ -228,15 +237,66 @@ macro_rules! impl_assign_op {
                     },
                     Vector::Scalar(lhs) => match rhs {
                         Vector::Vec(mut rhs) => {
-                            rhs.iter_mut().for_each(|b| {
-                                let mut a = lhs.clone();
-                                std::mem::swap(&mut a, b);
-                                b.$fn(a);
-                            });
-                            *self = Vector::from(rhs);
+                            assert!(rhs.len() == 1, "The other vector must be of length one");
+                            lhs.$fn(rhs.remove(0));
                         }
                         Vector::Scalar(rhs) => lhs.$fn(rhs),
                     },
+                }
+            }
+        }
+
+        impl<'a, T> $Trait<&'a Vector<T>> for Vector<T>
+        where
+            T: $Trait<&'a T>,
+        {
+            fn $fn(&mut self, rhs: &'a Self) {
+                match self {
+                    Vector::Vec(lhs) => match rhs {
+                        Vector::Vec(rhs) => {
+                            assert!(
+                                lhs.len() == rhs.len(),
+                                "The other vector must be of equal length: {} != {}",
+                                lhs.len(),
+                                rhs.len()
+                            );
+                            lhs.iter_mut()
+                                .zip(rhs.into_iter())
+                                .for_each(|(a, b)| a.$fn(b));
+                        }
+                        Vector::Scalar(rhs) => lhs.iter_mut().for_each(|a| a.$fn(rhs)),
+                    },
+                    Vector::Scalar(lhs) => match rhs {
+                        Vector::Vec(rhs) => {
+                            assert!(rhs.len() == 1, "The other vector must be of length one");
+                            lhs.$fn(&rhs[0]);
+                        }
+                        Vector::Scalar(rhs) => lhs.$fn(rhs),
+                    },
+                }
+            }
+        }
+
+        impl<T> $Trait<T> for Vector<T>
+        where
+            T: $Trait + Clone,
+        {
+            fn $fn(&mut self, rhs: T) {
+                match self {
+                    Vector::Vec(lhs) => lhs.iter_mut().for_each(|a| a.$fn(rhs.clone())),
+                    Vector::Scalar(lhs) => lhs.$fn(rhs),
+                }
+            }
+        }
+
+        impl<'a, T> $Trait<&'a T> for Vector<T>
+        where
+            T: $Trait<&'a T>,
+        {
+            fn $fn(&mut self, rhs: &'a T) {
+                match self {
+                    Vector::Vec(lhs) => lhs.iter_mut().for_each(|a| a.$fn(rhs)),
+                    Vector::Scalar(lhs) => lhs.$fn(rhs),
                 }
             }
         }
