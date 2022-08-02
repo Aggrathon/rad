@@ -59,7 +59,7 @@ where
         + Pow<T1, Output = T1>
         + Div<T1, Output = T1>
         + Clone,
-    T2: Sub<T1, Output = T1> + Clone,
+    T2: Sub<T1, Output = T1> + Copy,
 {
 }
 
@@ -72,7 +72,7 @@ where
         + Pow<T1, Output = T1>
         + Div<T1, Output = T1>
         + Div<&'a T1, Output = T1>,
-    T2: Sub<T1, Output = T1> + Clone,
+    T2: Sub<T1, Output = T1> + Copy,
 {
 }
 
@@ -186,14 +186,14 @@ where
 impl<T1, T2> Mul<T2> for FAD<T1>
 where
     T1: Mul<T2, Output = T1>,
-    T2: Clone,
+    T2: Copy,
 {
     type Output = FAD<T1>;
 
     #[inline]
     fn mul(self, rhs: T2) -> Self::Output {
         FAD {
-            value: self.value.mul(rhs.clone()),
+            value: self.value.mul(rhs),
             grad: self.grad.mul(rhs),
         }
     }
@@ -202,14 +202,14 @@ where
 impl<'a, T1, T2> Mul<T2> for &'a FAD<T1>
 where
     &'a T1: Mul<T2, Output = T1>,
-    T2: Clone,
+    T2: Copy,
 {
     type Output = FAD<T1>;
 
     #[inline]
     fn mul(self, rhs: T2) -> Self::Output {
         FAD {
-            value: self.value.mul(rhs.clone()),
+            value: self.value.mul(rhs),
             grad: self.grad.mul(rhs),
         }
     }
@@ -278,14 +278,14 @@ where
 impl<T1, T2> Div<T2> for FAD<T1>
 where
     T1: Div<T2, Output = T1>,
-    T2: Clone,
+    T2: Copy,
 {
     type Output = FAD<T1>;
 
     #[inline]
     fn div(self, rhs: T2) -> Self::Output {
         FAD {
-            value: self.value.div(rhs.clone()),
+            value: self.value.div(rhs),
             grad: self.grad.div(rhs),
         }
     }
@@ -294,14 +294,14 @@ where
 impl<'a, T1, T2> Div<T2> for &'a FAD<T1>
 where
     &'a T1: Div<T2, Output = T1>,
-    T2: Clone,
+    T2: Copy,
 {
     type Output = FAD<T1>;
 
     #[inline]
     fn div(self, rhs: T2) -> Self::Output {
         FAD {
-            value: self.value.div(rhs.clone()),
+            value: self.value.div(rhs),
             grad: self.grad.div(rhs),
         }
     }
@@ -378,15 +378,15 @@ where
         + Pow<T1, Output = T1>
         + One
         + Clone,
-    T2: Clone + Sub<T1, Output = T1>,
+    T2: Copy + Sub<T1, Output = T1>,
 {
     type Output = FAD<T1>;
 
     #[inline]
     fn pow(self, rhs: T2) -> Self::Output {
         FAD {
-            value: self.value.clone().pow(rhs.clone()),
-            grad: (self.grad * rhs.clone()) * self.value.pow(rhs - T1::one()),
+            value: self.value.clone().pow(rhs),
+            grad: (self.grad * rhs) * self.value.pow(rhs - T1::one()),
         }
     }
 }
@@ -395,15 +395,15 @@ impl<'a, T1, T2> Pow<T2> for &'a FAD<T1>
 where
     &'a T1: Pow<T2, Output = T1> + Pow<T1, Output = T1> + Mul<T2, Output = T1>,
     T1: One + Mul<T1, Output = T1>,
-    T2: Clone + Sub<T1, Output = T1>,
+    T2: Copy + Sub<T1, Output = T1>,
 {
     type Output = FAD<T1>;
 
     #[inline]
     fn pow(self, rhs: T2) -> Self::Output {
         FAD {
-            value: (&self.value).pow(rhs.clone()),
-            grad: (&self.grad * rhs.clone()) * (&self.value).pow(rhs - T1::one()),
+            value: (&self.value).pow(rhs),
+            grad: (&self.grad * rhs) * (&self.value).pow(rhs - T1::one()),
         }
     }
 }
@@ -454,8 +454,7 @@ where
 impl<'a, T> Pow2<&'a FAD<T>> for T
 where
     &'a T: Mul<T, Output = T>,
-    T: Ln<Output = T> + Pow<&'a T, Output = T> + Clone,
-    T: Mul<Output = T> + Clone,
+    T: Ln<Output = T> + Pow<&'a T, Output = T> + Mul<Output = T> + Clone,
 {
     type Output = FAD<T>;
 
@@ -470,8 +469,7 @@ where
 impl<'a, T> Pow2<FAD<T>> for &'a T
 where
     &'a T: Pow<T, Output = T> + Ln<Output = T>,
-    T: Mul<T, Output = T>,
-    T: Mul<Output = T> + Clone,
+    T: Mul<T, Output = T> + Clone,
 {
     type Output = FAD<T>;
 
@@ -486,7 +484,7 @@ where
 impl<'a, T> Pow2<&'a FAD<T>> for &'a T
 where
     &'a T: Pow<&'a T, Output = T> + Ln<Output = T> + Mul<T, Output = T>,
-    T: Mul<Output = T> + Clone,
+    T: Mul<T, Output = T> + Clone,
 {
     type Output = FAD<T>;
 
@@ -535,14 +533,14 @@ where
         + Ln<Output = T1>
         + Mul<T2, Output = T1>
         + Clone,
-    T2: Clone,
+    T2: Copy,
 {
     type Output = FAD<T1>;
 
     #[inline]
     fn log(self, rhs: T2) -> Self::Output {
         FAD {
-            value: self.value.clone().log(rhs.clone()),
+            value: self.value.clone().log(rhs),
             grad: self.grad / (self.value.ln() * rhs),
         }
     }
@@ -552,14 +550,14 @@ impl<'a, T1, T2> Log<T2> for &'a FAD<T1>
 where
     &'a T1: Div<T1, Output = T1> + Log<T2, Output = T1> + Ln<Output = T1>,
     T1: Mul<T2, Output = T1>,
-    T2: Clone,
+    T2: Copy,
 {
     type Output = FAD<T1>;
 
     #[inline]
     fn log(self, rhs: T2) -> Self::Output {
         FAD {
-            value: self.value.log(rhs.clone()),
+            value: self.value.log(rhs),
             grad: &self.grad / (self.value.ln() * rhs),
         }
     }

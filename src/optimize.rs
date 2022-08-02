@@ -27,16 +27,12 @@ where
         }
     }
 
-    pub fn loss(&mut self) -> T1 {
-        (self.loss_fn)(&self.x).value
+    pub fn loss(&mut self) -> FAD<T1> {
+        (self.loss_fn)(&self.x)
     }
 
     pub fn value(&mut self) -> &T1 {
         &self.x.value
-    }
-
-    pub fn gradient(&mut self) -> T1 {
-        (self.loss_fn)(&self.x).grad
     }
 
     pub fn step(&mut self) -> Option<T1> {
