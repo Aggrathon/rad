@@ -32,7 +32,7 @@ pub trait NumOpts<Output>:
 }
 
 /// A trait for producing some static values for numerical objects.
-pub trait NumConsts: One + Zero + Half + Two {}
+pub trait NumConsts: One + Zero + Half + Two + Epsilon {}
 
 /// A trait for aggregation operations on collections of numerical values
 pub trait AggOps<Output = Self>: Sum<Output = Output> + Prod<Output = Output> {}
@@ -55,6 +55,10 @@ pub trait Half {
 pub trait Two {
     /// Returns the multiplicative double of `Self`, `2.0`.
     fn two() -> Self;
+}
+
+pub trait Epsilon {
+    fn epsilon() -> Self;
 }
 
 /// Unary operator for calculating the natural logarithm.
@@ -320,6 +324,8 @@ impl_const!(f32, Half, half, 0.5);
 impl_const!(f64, Half, half, 0.5);
 impl_const!(f32, Two, two, 2.0);
 impl_const!(f64, Two, two, 2.0);
+impl_const!(f32, Epsilon, epsilon, f32::EPSILON);
+impl_const!(f64, Epsilon, epsilon, f64::EPSILON);
 
 macro_rules! impl_unary {
     ($T:ty, $Trait:ty, $($f:ident),+) => {

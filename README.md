@@ -21,19 +21,16 @@ let data = Vector::from(data);
 let mean = (&data).sum().first().unwrap() / data.len() as f32;
 // Create a squared-error loss function
 let loss = |x: &FAD<Vector<f32>>| {
-    let mut loss = (x - &data).square();
+    let mut loss = (x - &data).square().sum();
     loss.grad = loss.grad.sum(); // all forward passes in one go
     loss
 };
-// Apply gradient descent for 100 iterations
-let learning_rate = 0.1f32;
-let mut gd = GradientDescent::with_lr(Vector::Scalar(0f32), loss, learning_rate);
-for _ in 0..100 {
-    gd.step();
-}
-// Compare the gradient descent mean to the "proper mean"
+// Apply gradient descent
+let mut gd = GradientDescent::with_lr(Vector::Scalar(0f32), loss, 1.0);
+let steps = gd.count(); // Steps until convergence
+// Compare the "gradient descent" mean to the "proper" mean
 match gd.value() {
-    Vector::Scalar(gd_mean) => assert_eq!(mean, *gd_mean),
+    Vector::Scalar(gd_mean) => assert!((mean - gd_mean).abs() < 1e-4),
     _ => panic!(),
 };
 ```

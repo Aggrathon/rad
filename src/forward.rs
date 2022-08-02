@@ -120,6 +120,7 @@ impl_const_op!(crate::ops::One, one);
 impl_const_op!(crate::ops::Zero, zero);
 impl_const_op!(crate::ops::Half, half);
 impl_const_op!(crate::ops::Two, two);
+impl_const_op!(crate::ops::Epsilon, epsilon);
 
 impl<T1, T2> Add<T2> for FAD<T1>
 where

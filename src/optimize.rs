@@ -1,30 +1,53 @@
-use crate::forward::FAD;
-use crate::ops::One;
-use std::ops::{Mul, SubAssign};
+use crate::ops::{Epsilon, One};
+use crate::{forward::FAD, ops::Half};
+use std::ops::{Mul, MulAssign, SubAssign};
 
-pub struct GradientDescent<T1, T2, F, I>
+pub struct GradientDescent<T1, T2, F>
 where
-    T1: Mul<T2, Output = T1> + SubAssign<T1> + One,
+    T1: Mul<T2, Output = T1> + SubAssign<T1>,
     F: Fn(&FAD<T1>) -> FAD<T1>,
-    I: Iterator<Item = T2>,
 {
     x: FAD<T1>,
     loss_fn: F,
-    lr: I,
+    lr: T2,
+    lr_alpha: T2,
+    loss_last: Option<T1>,
 }
 
-impl<T1, T2, F, I> GradientDescent<T1, T2, F, I>
+impl<T1, T2, F> GradientDescent<T1, T2, F>
 where
     T1: Mul<T2, Output = T1> + SubAssign<T1> + One,
+    T2: Half,
     F: Fn(&FAD<T1>) -> FAD<T1>,
-    I: Iterator<Item = T2>,
 {
-    pub fn new(x0: T1, loss: F, lr: I) -> Self {
+    pub fn new(x0: T1, loss: F, lr: T2) -> Self {
         Self {
             x: FAD::from(x0),
             loss_fn: loss,
             lr,
+            lr_alpha: T2::half(),
+            loss_last: None,
         }
+    }
+}
+
+impl<T1, T2, F> GradientDescent<T1, T2, F>
+where
+    T1: Mul<T2, Output = T1> + SubAssign<T1>,
+    F: Fn(&FAD<T1>) -> FAD<T1>,
+{
+    pub fn set_lr(mut self, lr: T2, alpha: T2) -> Self {
+        self.lr = lr;
+        self.lr_alpha = alpha;
+        self.loss_last = None;
+        self
+    }
+
+    pub fn change_lr(&mut self, lr: T2, alpha: T2) -> &mut Self {
+        self.lr = lr;
+        self.lr_alpha = alpha;
+        self.loss_last = None;
+        self
     }
 
     pub fn loss(&mut self) -> FAD<T1> {
@@ -34,40 +57,41 @@ where
     pub fn value(&mut self) -> &T1 {
         &self.x.value
     }
-
-    pub fn step(&mut self) -> Option<T1> {
-        let lr = self.lr.next()?;
-        let res = (self.loss_fn)(&self.x);
-        self.x.value -= res.grad * lr;
-        Some(res.value)
-    }
 }
 
-impl<T1, T2, F> GradientDescent<T1, T2, F, std::iter::Repeat<T2>>
+impl<T1, T2, F> GradientDescent<T1, T2, F>
 where
-    T1: Mul<T2, Output = T1> + SubAssign<T1> + One,
+    T1: Mul<T2, Output = T1> + SubAssign<T1> + PartialOrd,
+    T2: Clone + MulAssign<T2>,
     F: Fn(&FAD<T1>) -> FAD<T1>,
-    T2: Clone,
 {
-    pub fn with_lr(x0: T1, loss_fn: F, lr: T2) -> Self {
-        Self {
-            x: FAD::from(x0),
-            loss_fn,
-            lr: std::iter::repeat(lr),
+    pub fn step(&mut self) -> &T1 {
+        let res = (self.loss_fn)(&self.x);
+        if let Some(l) = &self.loss_last {
+            if res.value >= *l {
+                self.lr *= self.lr_alpha.clone();
+            }
         }
+        self.x.value -= res.grad * self.lr.clone();
+        self.loss_last = Some(res.value);
+        self.loss_last.as_ref().unwrap()
     }
 }
 
-impl<T1, T2, F, I> Iterator for GradientDescent<T1, T2, F, I>
+impl<'a, T1, T2, F> Iterator for &'a mut GradientDescent<T1, T2, F>
 where
-    T1: Mul<T2, Output = T1> + SubAssign<T1> + One,
+    T1: Mul<T2, Output = T1> + SubAssign<T1> + PartialOrd + Clone,
+    T2: Clone + MulAssign<T2> + Epsilon + PartialOrd,
     F: Fn(&FAD<T1>) -> FAD<T1>,
-    I: Iterator<Item = T2>,
 {
     type Item = T1;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.step()
+        if self.lr.le(&T2::epsilon()) {
+            None
+        } else {
+            Some(self.step().clone())
+        }
     }
 }
 
@@ -83,17 +107,17 @@ mod tests {
         let data = Vector::from(data);
         let mean = (&data).sum().first().unwrap() / data.len() as f32;
         let loss = |x: &FAD<Vector<f32>>| {
-            let mut loss = (x - &data).square();
+            let mut loss = (x - &data).square().sum();
             loss.grad = loss.grad.sum(); // all forward passes in one go
             loss
         };
-        let learning_rate = 0.1f32;
-        let mut gd = GradientDescent::with_lr(Vector::Scalar(0f32), loss, learning_rate);
-        for _ in 0..100 {
-            gd.step();
-        }
+        let mut gd = GradientDescent::new(Vector::Scalar(0f32), loss, 1.0);
+        let steps = gd.count();
+        assert_eq!(34, steps);
         match gd.value() {
-            Vector::Scalar(gd_mean) => assert_eq!(mean, *gd_mean),
+            Vector::Scalar(gd_mean) => {
+                assert!((mean - gd_mean).abs() < 1e-4, "{} != {}", mean, gd_mean)
+            }
             _ => panic!(),
         };
     }

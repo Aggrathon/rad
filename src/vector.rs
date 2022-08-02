@@ -105,6 +105,7 @@ impl_const_op!(crate::ops::One, one);
 impl_const_op!(crate::ops::Zero, zero);
 impl_const_op!(crate::ops::Half, half);
 impl_const_op!(crate::ops::Two, two);
+impl_const_op!(crate::ops::Epsilon, epsilon);
 
 macro_rules! impl_binary_op {
     ($Trait:tt, $f:ident) => {
@@ -379,6 +380,78 @@ macro_rules! impl_agg_op {
 impl_agg_op!(Sum, sum, Add, add, Zero, zero);
 impl_agg_op!(Prod, prod, Mul, mul, One, one);
 
+macro_rules! impl_partial_ord_fns {
+    ($($fn:ident),+: short) => {
+        $(
+            fn $fn(&self, other: &T) -> bool {
+                match self {
+                    Vector::Vec(v) => v.iter().all(|a| a.$fn(other)),
+                    Vector::Scalar(v) => v.$fn(other),
+                }
+            }
+        )+
+    };
+    ($($fn:ident),+: long) => {
+        $(
+            fn $fn(&self, other: &Vector<T>) -> bool {
+                match (self, other) {
+                    (Vector::Vec(lv), Vector::Vec(rv)) => {
+                        assert_eq!(lv.len(), rv.len());
+                        lv.iter().zip(rv.iter()).all(|(a, b)| a.$fn(b))
+                    }
+                    (Vector::Vec(lv), Vector::Scalar(rv)) => lv.iter().all(|a| a.$fn(rv)),
+                    (Vector::Scalar(lv), Vector::Vec(rv)) => rv.iter().all(|b| lv.$fn(b)),
+                    (Vector::Scalar(lv), Vector::Scalar(rv)) => lv.$fn(rv),
+                }
+            }
+        )+
+    };
+    ($type:ident) => {
+        impl_partial_ord_fns!{lt, le, gt, ge: $type}
+    };
+}
+
+impl<T> PartialEq<T> for Vector<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &T) -> bool {
+        match self {
+            Self::Vec(_) => false,
+            Self::Scalar(v) => v == other,
+        }
+    }
+}
+
+impl<T> PartialOrd<T> for Vector<T>
+where
+    T: PartialOrd,
+{
+    fn partial_cmp(&self, other: &T) -> Option<std::cmp::Ordering> {
+        match self {
+            Vector::Vec(_) => None,
+            Vector::Scalar(v) => v.partial_cmp(other),
+        }
+    }
+
+    impl_partial_ord_fns!(short);
+}
+
+impl<T> PartialOrd<Vector<T>> for Vector<T>
+where
+    T: PartialOrd,
+{
+    fn partial_cmp(&self, other: &Vector<T>) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Vector::Vec(_), Vector::Vec(_)) => None,
+            (Vector::Vec(_), Vector::Scalar(_)) => None,
+            (Vector::Scalar(_), Vector::Vec(_)) => None,
+            (Vector::Scalar(lv), Vector::Scalar(rv)) => lv.partial_cmp(rv),
+        }
+    }
+    impl_partial_ord_fns!(long);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -421,8 +494,8 @@ mod tests {
     #[test]
     fn scalar() {
         _scalar(
-            Vector::from(vec![2.0, 3., 5.678, 1. / 3., 0.0]),
-            Vector::from(vec![3.0, 1., 6.783, 1. / 7., 2.0]),
+            Vector::from(vec![2.0, 3., -5.678, 1. / 3., 0.0]),
+            Vector::from(vec![3.0, 1., 6.783, -1. / 7., 2.0]),
         );
         _scalar(Vector::from(2.0), Vector::from(3.0));
         _scalar(Vector::from(vec![-6.378, 0.0]), Vector::from(2.0));
@@ -431,15 +504,54 @@ mod tests {
 
     fn _scalar(a: Vector<f32>, c: Vector<f32>) {
         let b = FAD::from(a.clone());
-        check_ops!(a, b, c: mul, add, sub, div, pow);
+        check_ops!(a, b, c: mul, add, sub, div);
         check_ops!(a, b, c, rev: _pow, _div);
         check_ops!(a, b: neg, abs, square, exp, sin, cos, tan);
         let a = a.abs();
         let b = b.abs();
+        check_ops!(a, b, c: pow);
         let c = c.abs();
         check_ops!(a, b, c: log);
         check_ops!(a, b, c, rev: _log);
         check_ops!(a, b: ln, sqrt);
+    }
+
+    #[test]
+    fn partial_ord() {
+        let a = Vector::from(vec![2.0, 3., -5.678, 1. / 3., 0.0]);
+        let b = Vector::from(vec![3.0, 1., 6.783, -1. / 7., 2.0]);
+        let c = Vector::from(2.0f32);
+        let d = Vector::from(7.0f32);
+        assert!(c.lt(&d));
+        assert!(c.le(&d));
+        assert!(d.gt(&c));
+        assert!(d.ge(&c));
+        assert!(d.ge(&b));
+        assert!(d.gt(&b));
+        assert!(b.le(&d));
+        assert!(b.lt(&d));
+        assert!(!c.lt(&b));
+        assert!(!c.le(&b));
+        assert!(!c.gt(&b));
+        assert!(!c.ge(&b));
+        assert!(!a.lt(&b));
+        assert!(!a.le(&b));
+        assert!(!a.gt(&b));
+        assert!(!a.ge(&b));
+        let d = 7.0f32;
+        assert!(c.lt(&d));
+        assert!(c.le(&d));
+        assert!(!c.gt(&d));
+        assert!(!c.ge(&d));
+        assert!(b.le(&d));
+        assert!(b.lt(&d));
+        assert!(!b.ge(&d));
+        assert!(!b.gt(&d));
+        let c = 2.0f32;
+        assert!(!b.lt(&c));
+        assert!(!b.le(&c));
+        assert!(!b.gt(&c));
+        assert!(!b.ge(&c));
     }
 
     macro_rules! assert_impl {
@@ -478,6 +590,9 @@ mod tests {
             assert_impl!(&Vector<$T>: AggOps<Vector<$T>>);
             assert_impl!(FAD<Vector<$T>>: AggOps<FAD<Vector<$T>>>);
             assert_impl!(&FAD<Vector<$T>>: AggOps<FAD<Vector<$T>>>);
+
+            assert_impl!(Vector<$T>: PartialOrd<$T>);
+            assert_impl!(Vector<$T>: PartialOrd<Vector<$T>>);
         };
     }
 
