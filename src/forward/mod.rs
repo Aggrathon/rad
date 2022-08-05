@@ -1,5 +1,11 @@
 /// Forward Automatic Differentiation
+//
+pub mod ops;
+pub mod optimize;
+pub mod vector;
+
 use crate::ops::*;
+use ops::*;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Wrapper for automatic differentiation in forward mode.

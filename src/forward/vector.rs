@@ -1,4 +1,6 @@
 /// Simple library for vectorised math
+//
+use super::ops::*;
 use crate::ops::*;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 

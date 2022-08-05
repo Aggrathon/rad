@@ -1,3 +1,5 @@
+/// Use automatic gradients to optimise loss functions
+//
 use crate::ops::{Epsilon, One};
 use crate::{forward::FAD, ops::Half};
 use std::ops::{Mul, MulAssign, SubAssign};
@@ -98,8 +100,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::forward::vector::Vector;
     use crate::ops::*;
-    use crate::vector::Vector;
 
     #[test]
     fn mean_opt() {
