@@ -2,13 +2,17 @@
 
 A library for [automatic differentiation](https://en.wikipedia.org/wiki/Automatic_differentiation) written in Rust.
 
+This library implements both forward and reverse autodiff. Forward autodiff is simpler to use (and implement) since you can calculate everything in just a single pass. However, the process has to be repeated separately for every variable (multiple outputs are fine).
+
+Reverse autodiff, also called backpropagation, has two passes: forward and reverse. Reverse autodiff can calculate the gradients for multiple variables at the same time, as long as there is just one single output. This makes it especially popular for machine learning since it is common to have multiple variables but just a single loss function (at a time). Conceptually, reverse autodiff creates a directed acyclic computation graph, where the values and graph structure are filled in in the forward pass and the gradients are added in the reverse pass.
+
 ## Features
 
 - [x] Forward autodiff
 - [x] Simple vector library
 - [x] Gradient descent
-- [ ] Reverse autodiff
-- [ ] Simple tensor library
+- [x] Reverse autodiff
+- [ ] More linear algebra
 
 ## Example
 
