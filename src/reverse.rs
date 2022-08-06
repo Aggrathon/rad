@@ -9,7 +9,7 @@ use std::{
 
 /// This is a node/subgraph in an directed acyclic computation graph.
 /// the internals of the node is wrapped in a reference counted cell.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RAD<T>(Rc<RefCell<RadNode<T>>>);
 
 impl<T> Deref for RAD<T> {
@@ -23,6 +23,21 @@ impl<T> Deref for RAD<T> {
 impl<T> DerefMut for RAD<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl<T> Debug for RAD<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let node = self.node();
+        f.debug_struct("RAD")
+            .field("value", &node.value)
+            .field("grad", &node.grad)
+            .field("prune", &node.prune)
+            .field("op", &node.op)
+            .finish()
     }
 }
 
@@ -40,16 +55,35 @@ pub struct RadNode<T> {
     prune: bool,
 }
 
+/// An enum defining an operation in the computation graph
 #[derive(Clone, Copy)]
-enum Operation<Ref, Val> {
+pub enum Operation<Ref, Val> {
+    /// No operation, just store the value (used for variables and constants)
     Value,
-    Unary(Ref, fn(Val) -> Val, fn(&mut Ref, Val, &Val) -> Val),
+    /// Unary operation (such as `neg` and `abs`)
+    Unary(
+        /// Previous node
+        Ref,
+        /// Forward operation
+        fn(Val) -> Val,
+        /// Gradient update
+        fn(&Val, Val, &Val) -> Val,
+        /// Debug name
+        &'static str,
+    ),
     Binary(
+        /// Previous node A
         Ref,
+        /// Previous node B
         Ref,
+        /// Forward operation
         fn(Val, Val) -> Val,
-        fn(&mut Ref, &mut Ref, Val, &Val) -> Val,
-        fn(&mut Ref, &mut Ref, Val, &Val) -> Val,
+        /// Gradient update A
+        fn(&Val, &Val, Val, &Val) -> Val,
+        /// Gradient update B
+        fn(&Val, &Val, Val, &Val) -> Val,
+        /// Debug name
+        &'static str,
     ),
 }
 
@@ -58,16 +92,11 @@ where
     R: Debug,
     V: Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Value => write!(f, "Value"),
-            Self::Unary(arg0, arg1, _) => f.debug_tuple("Unary").field(arg0).field(arg1).finish(),
-            Self::Binary(arg0, arg1, arg2, _, _) => f
-                .debug_tuple("Binary")
-                .field(arg0)
-                .field(arg1)
-                .field(arg2)
-                .finish(),
+            Self::Value => write!(fmt, "Value"),
+            Self::Unary(a, _, _, s) => fmt.debug_tuple(s).field(a).finish(),
+            Self::Binary(a, b, _, _, _, s) => fmt.debug_tuple(s).field(a).field(b).finish(),
         }
     }
 }
@@ -113,7 +142,7 @@ impl<T> GradOption<T> {
 }
 
 impl<T> RAD<T> {
-    /// Create a new variable (which requires gradients)
+    /// Create a new variable (which requires gradient)
     pub fn variable(value: T) -> Self {
         RAD(Rc::new(RefCell::new(RadNode {
             value,
@@ -123,7 +152,7 @@ impl<T> RAD<T> {
         })))
     }
 
-    /// Create a new constant (which does not require gradients)
+    /// Create a new constant (which does not require gradient)
     pub fn constant(value: T) -> Self {
         RAD(Rc::new(RefCell::new(RadNode {
             value,
@@ -172,23 +201,41 @@ where
         self.node_mut().value.clone()
     }
 
+    /// Create a new node in the computation graph from an unary operation
     #[inline]
-    fn unary(mut prev: RAD<T>, forward: fn(T) -> T, reverse: fn(&mut RAD<T>, T, &T) -> T) -> Self {
+    pub fn unary(
+        // Previous node
+        mut prev: RAD<T>,
+        // Operation
+        forward: fn(T) -> T,
+        // Gradient
+        reverse: fn(&T, T, &T) -> T,
+        // Debug name
+        name: &'static str,
+    ) -> Self {
         let value = forward(prev.clone_value());
-        let op = Operation::Unary(prev, forward, reverse);
+        let op = Operation::Unary(prev, forward, reverse, name);
         Self::new(value, op)
     }
 
+    /// Create a new node in the computation graph from an binary operation
     #[inline]
-    fn binary(
+    pub fn binary(
+        // Previous node A
         mut prev_a: RAD<T>,
+        // Previous node B
         mut prev_b: RAD<T>,
+        // Operation
         forward: fn(T, T) -> T,
-        reverse_a: fn(&mut RAD<T>, &mut RAD<T>, T, &T) -> T,
-        reverse_b: fn(&mut RAD<T>, &mut RAD<T>, T, &T) -> T,
+        // Gradient A
+        reverse_a: fn(&T, &T, T, &T) -> T,
+        // Gradient B
+        reverse_b: fn(&T, &T, T, &T) -> T,
+        // Debug name
+        name: &'static str,
     ) -> Self {
         let value = forward(prev_a.clone_value(), prev_b.clone_value());
-        let op = Operation::Binary(prev_a, prev_b, forward, reverse_a, reverse_b);
+        let op = Operation::Binary(prev_a, prev_b, forward, reverse_a, reverse_b, name);
         Self::new(value, op)
     }
 }
@@ -265,19 +312,19 @@ where
         };
         match &mut self.op {
             Operation::Value => {}
-            Operation::Unary(a, _, rev) => {
+            Operation::Unary(a, _, rev, _) => {
                 if !a.pruned() {
-                    let grad = rev(a, grad, &self.value);
+                    let grad = rev(&a.node().value, grad, &self.value);
                     a.backpropagate(grad);
                 }
             }
-            Operation::Binary(a, b, _, rev_a, rev_b) => {
+            Operation::Binary(a, b, _, rev_a, rev_b, _) => {
                 if !a.pruned() {
-                    let grad_a = rev_a(a, b, grad.clone(), &self.value);
+                    let grad_a = rev_a(&a.node().value, &b.node().value, grad.clone(), &self.value);
                     a.backpropagate(grad_a);
                 }
                 if !b.pruned() {
-                    let grad_b = rev_b(a, b, grad, &self.value);
+                    let grad_b = rev_b(&a.node().value, &b.node().value, grad, &self.value);
                     b.backpropagate(grad_b);
                 }
             }
@@ -294,7 +341,7 @@ macro_rules! impl_binary_op {
             type Output = RAD<T>;
 
             fn $fn(self, rhs: &'a RAD<T>) -> Self::Output {
-                RAD::binary(self.clone(), rhs.clone(), T::$fn, $grad_a, $grad_b)
+                RAD::binary(self.clone(), rhs.clone(), T::$fn, $grad_a, $grad_b, stringify!($fn))
             }
         }
 
@@ -306,7 +353,7 @@ macro_rules! impl_binary_op {
 
             fn $fn(self, rhs: T) -> Self::Output {
                 let rhs = RAD::constant(rhs);
-                RAD::binary(self.clone(), rhs, T::$fn, $grad_a, $grad_b)
+                RAD::binary(self.clone(), rhs, T::$fn, $grad_a, $grad_b, stringify!($fn))
             }
         }
     };
@@ -314,24 +361,12 @@ macro_rules! impl_binary_op {
 
 impl_binary_op!(Add, add: |_, _, g, _| g; |_, _, g, _| g;);
 impl_binary_op!(Sub, sub: |_, _, g, _| g; |_, _, g, _| g.neg(); Neg<Output = T>);
-impl_binary_op!(Mul, mul: |_, b, g, _| g * b.clone_value(); |a, _, g, _| g * a.clone_value(););
-impl_binary_op!(Div, div: |_, b, g, _| g / b.clone_value(); |a, b, g, _| g * a.clone_value().neg() / b.clone_value().square(); Neg<Output = T>, Mul<Output = T>, Square<Output = T>);
-impl_binary_op!(Pow, pow: |a, b, g, _| g * b.clone_value() * a.clone_value().pow(b.clone_value() - T::one()); |a, _, g, v| g * a.clone_value().ln() * v.clone(); Mul<Output = T>, Sub<Output = T>, One, Ln<Output = T>);
-impl_binary_op!(Log, log: |a, b, g, _| g / (b.clone_value().ln() * a.clone_value()); |a, b, g, _| g * a.clone_value().ln().neg() / (b.clone_value() * b.clone_value().ln().square()); Mul<Output = T>, Div<Output = T>, Neg<Output = T>, Square<Output = T>, Ln<Output = T>);
+impl_binary_op!(Mul, mul: |_, b, g, _| g * b.clone(); |a, _, g, _| g * a.clone(););
+impl_binary_op!(Div, div: |_, b, g, _| g / b.clone(); |a, b, g, _| g * a.clone().neg() / b.clone().square(); Neg<Output = T>, Mul<Output = T>, Square<Output = T>);
+impl_binary_op!(Pow, pow: |a, b, g, _| g * b.clone() * a.clone().pow(b.clone() - T::one()); |a, _, g, v| g * a.clone().ln() * v.clone(); Mul<Output = T>, Sub<Output = T>, One, Ln<Output = T>);
+impl_binary_op!(Log, log: |a, b, g, _| g / (b.clone().ln() * a.clone()); |a, b, g, _| g * a.clone().ln().neg() / (b.clone() * b.clone().ln().square()); Mul<Output = T>, Div<Output = T>, Neg<Output = T>, Square<Output = T>, Ln<Output = T>);
 
 macro_rules! impl_unary_op {
-    ($Trait:tt, $fn:ident: $grad:expr; $($T:path),*) => {
-        impl<'a, T> $Trait for &'a RAD<T>
-        where
-            T: $Trait<Output = T> + Clone $(+ $T)*,
-        {
-            type Output = RAD<T>;
-
-            fn $fn(self) -> Self::Output {
-                RAD::unary(self.clone(), T::$fn, $grad)
-            }
-        }
-    };
     ($Trait:tt, $($fn:ident: $grad:expr),+; $($T:path),*) => {
         impl<'a, T> $Trait for &'a RAD<T>
         where
@@ -341,7 +376,7 @@ macro_rules! impl_unary_op {
 
             $(
                 fn $fn(self) -> Self::Output {
-                    RAD::unary(self.clone(), T::$fn, $grad)
+                    RAD::unary(self.clone(), T::$fn, $grad, stringify!($fn))
                 }
             )+
         }
@@ -349,12 +384,12 @@ macro_rules! impl_unary_op {
 }
 
 impl_unary_op!(Neg, neg: |_, g, _| g.neg(););
-impl_unary_op!(Exp, exp: |a, g, _| g * a.clone_value(); Mul<Output = T>);
-impl_unary_op!(Ln, ln: |a, g, _| g / a.clone_value(); Mul<Output = T>, Div<Output = T>);
-impl_unary_op!(Abs, abs: |a, g, _| g * a.clone_value().signum(); Mul<Output = T>, Signum<Output = T>);
-impl_unary_op!(Trig, sin: |a, g, _| g * a.clone_value().sin(), cos: |a, g, _| g * a.clone_value().sin().neg(), tan: |a, g, _| g / a.clone_value().cos().square(); Mul<Output = T>, Neg<Output = T>, Div<Output = T>, Square<Output = T>);
-impl_unary_op!(Square, square: |a, g, _| g * (T::two() * a.clone_value()); Mul<Output = T>, Two);
-impl_unary_op!(Sqrt, sqrt: |a, g, _| g * (T::half() / a.clone_value()); Mul<Output = T>, Div<Output = T>, Half);
+impl_unary_op!(Exp, exp: |a, g, _| g * a.clone(); Mul<Output = T>);
+impl_unary_op!(Ln, ln: |a, g, _| g / a.clone(); Mul<Output = T>, Div<Output = T>);
+impl_unary_op!(Abs, abs: |a, g, _| g * a.clone().signum(); Mul<Output = T>, Signum<Output = T>);
+impl_unary_op!(Trig, sin: |a, g, _| g * a.clone().cos(), cos: |a, g, _| g * a.clone().sin().neg(), tan: |a, g, _| g / a.clone().cos().square(); Mul<Output = T>, Neg<Output = T>, Div<Output = T>, Square<Output = T>);
+impl_unary_op!(Square, square: |a, g, _| g * (T::two() * a.clone()); Mul<Output = T>, Two);
+impl_unary_op!(Sqrt, sqrt: |a, g, _| g * (T::half() / a.clone()); Mul<Output = T>, Div<Output = T>, Half);
 
 #[cfg(test)]
 mod tests {
@@ -447,5 +482,70 @@ mod tests {
             2.0f32.ln() * 2.0f32.pow(3.0),
             4.0 + 2.0f32.ln() * 4.0
         );
+    }
+
+    macro_rules! test_unary_scalar {
+        ($fn:ident, $($a:expr, $g:expr),+) => {
+            $(
+            let r = ($a).$fn();
+            let a = RAD::variable($a);
+            let mut b = a.$fn();
+            assert_eq!(r, b.clone_value());
+            b.backward(false);
+            let g = a.node().grad.unwrap();
+            assert!(($g - g).abs() < 1e-6, "{} != {}", $g, g);
+            )+
+        };
+    }
+
+    #[test]
+    fn neg() {
+        for v in [-2.0, 0.0, 3.0, 7.0f32] {
+            test_unary_scalar!(neg, v, -1.);
+        }
+    }
+
+    #[test]
+    fn exp() {
+        for v in [-2.0, 0.0, 3.0, 7.0f32] {
+            test_unary_scalar!(exp, v, v);
+        }
+    }
+
+    #[test]
+    fn ln() {
+        for v in [0.01, 3.0, 7.0f32] {
+            test_unary_scalar!(ln, v, 1. / v);
+        }
+    }
+
+    #[test]
+    fn abs() {
+        for v in [-2.0, 0.0, 3.0, 7.0f32] {
+            test_unary_scalar!(abs, v, v.signum());
+        }
+    }
+
+    #[test]
+    fn square() {
+        for v in [-2.0, 0.0, 3.0, 7.0f32] {
+            test_unary_scalar!(square, v, 2. * v);
+        }
+    }
+
+    #[test]
+    fn sqrt() {
+        for v in [0.01, 3.0, 7.0f32] {
+            test_unary_scalar!(sqrt, v, 0.5 / v);
+        }
+    }
+
+    #[test]
+    fn trig() {
+        for v in [-2.0, 0.0, 3.0, 7.0f32] {
+            test_unary_scalar!(sin, v, v.cos());
+            test_unary_scalar!(cos, v, -v.sin());
+            test_unary_scalar!(tan, v, 1. / v.cos().square());
+        }
     }
 }
