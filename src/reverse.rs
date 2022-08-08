@@ -1,5 +1,5 @@
 /// Reverse Automatic Differentiation
-use crate::ops::{Abs, Exp, Half, Ln, Log, One, Pow, Signum, Sqrt, Square, Trig, Two};
+use crate::ops::{Abs, Exp, Half, Ln, Log, One, Pow, Prod, Signum, Sqrt, Square, Sum, Trig, Two};
 use std::{
     cell::{Ref, RefCell, RefMut},
     fmt::Debug,
@@ -328,7 +328,7 @@ where
                     b.backpropagate(grad_b);
                 }
             }
-        };
+        }
     }
 }
 
@@ -390,6 +390,24 @@ impl_unary_op!(Abs, abs: |a, g, _| g * a.clone().signum(); Mul<Output = T>, Sign
 impl_unary_op!(Trig, sin: |a, g, _| g * a.clone().cos(), cos: |a, g, _| g * a.clone().sin().neg(), tan: |a, g, _| g / a.clone().cos().square(); Mul<Output = T>, Neg<Output = T>, Div<Output = T>, Square<Output = T>);
 impl_unary_op!(Square, square: |a, g, _| g * (T::two() * a.clone()); Mul<Output = T>, Two);
 impl_unary_op!(Sqrt, sqrt: |a, g, _| g * (T::half() / a.clone()); Mul<Output = T>, Div<Output = T>, Half);
+
+macro_rules! impl_agg_op {
+    ($Trait:tt, $fn:ident, $grad:expr; $($T:tt),*) => {
+        impl<'a, T> $Trait for &'a RAD<T>
+        where
+            T: $Trait<Output = T> + Clone $(+ $T<Output = T>)*,
+        {
+            type Output = RAD<T>;
+
+            fn $fn(self) -> Self::Output {
+                RAD::unary(self.clone(), T::$fn, $grad, stringify!($fn))
+            }
+        }
+    };
+}
+
+impl_agg_op!(Sum, sum, |_, g, _| g;);
+impl_agg_op!(Prod, prod, |a, g, v| g * (v.clone() / a.clone()); Mul, Div);
 
 #[cfg(test)]
 mod tests {
